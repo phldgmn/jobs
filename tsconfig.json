@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "lib": ["ESNext", "DOM"],
+    "types": ["bun"],
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "*.ts"]
+}

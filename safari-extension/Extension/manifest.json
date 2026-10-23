@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Jobs Capture",
+  "version": "1.0",
+  "description": "Send the current page's rendered content to the local Jobs tracker.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Add job from this page",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png",
+      "256": "icon-256.png",
+      "512": "icon-512.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html"
+  },
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png",
+    "256": "icon-256.png",
+    "512": "icon-512.png"
+  }
+}
