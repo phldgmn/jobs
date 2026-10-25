@@ -12,7 +12,7 @@ Open the generated project in Xcode, run the app once, then enable the extension
 
 ## Configure
 
-Toolbar button > extension options: set Jobs server URL (default `http://127.0.0.1:3000`).
+Toolbar button > extension options: set Jobs server URL (default `http://127.0.0.1:48173`, the port the bundled server in the menu bar app listens on; see `SERVER_PORT` in `menubar/Info.plist.in`). `make safari` copies `Extension/` into the Xcode build project before building, so the built extension always matches this source.
 
 ## Server
 

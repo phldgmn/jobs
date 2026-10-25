@@ -19,6 +19,7 @@ server:
 	bun build --compile $(REPO)/src/server.ts --outfile $(SERVER_BIN)
 
 safari:
+	cp -R $(REPO)/safari-extension/Extension/. "$(SAFARI_PROJ)/PageSender Extension/Resources/"
 	cd $(SAFARI_PROJ) && xcodebuild -project PageSender.xcodeproj -scheme PageSender -configuration Release -derivedDataPath $(SAFARI_DD) PRODUCT_BUNDLE_IDENTIFIER=eu.dgmn.jobsmenubar.Extension build
 
 app: server safari
