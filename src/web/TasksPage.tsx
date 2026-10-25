@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Card, Popover, Space, Table, Tabs, Tag, Tooltip, Typography } from "antd";
 import { LinkOutlined, ReloadOutlined } from "@ant-design/icons";
-import { errMessage, req } from "./api";
+import { errMessage, isContentKey, req } from "./api";
 import type { ActiveTask, FailedTask } from "../schemas";
 
 const kindLabel: Record<ActiveTask["kind"], string> = { parse: "Parse job", evaluate: "Evaluate fit" };
@@ -31,6 +31,7 @@ const fromSqlite = (s: string) => new Date(s.replace(" ", "T") + "Z");
 // Title when parsed; otherwise a link icon whose tooltip is the full URL.
 function JobCell({ t }: { t: ActiveTask | FailedTask }) {
   if (t.title) return <a href={t.url} target="_blank" rel="noreferrer">{t.title}</a>;
+  if (isContentKey(t.url)) return <span>{t.url.startsWith("file:") ? "Uploaded file" : "Pasted text"}</span>;
   return (
     <Tooltip title={t.url}>
       <a href={t.url} target="_blank" rel="noreferrer" aria-label={t.url}>

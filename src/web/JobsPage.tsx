@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Descriptions, Form, Input, InputNumber, Select, Slider, Space, Switch, Tooltip, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { DeleteOutlined, EditOutlined, ReloadOutlined, StopOutlined } from "@ant-design/icons";
-import { errMessage, req } from "./api";
+import { errMessage, isContentKey, req } from "./api";
 import { applyFilters, FIT_PARTIAL, FIT_STRONG, type Filters } from "./filter";
 import { loadFilters, saveFilters } from "./filterStorage";
 import { relativeDeadline } from "./relativeDate";
@@ -400,9 +400,13 @@ function JobBody({
       key: "url",
       label: "Original",
       children: (
-        <a href={job.url} target="_blank" rel="noreferrer">
-          {job.url}
-        </a>
+        isContentKey(job.url) ? (
+          "Pasted or uploaded content"
+        ) : (
+          <a href={job.url} target="_blank" rel="noreferrer">
+            {job.url}
+          </a>
+        )
       ),
     },
   ];

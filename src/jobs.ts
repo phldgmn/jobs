@@ -1,4 +1,4 @@
-import { fetchPageText } from "./fetchPage";
+import { fetchPageText, fetchPdfText } from "./fetchPage";
 import { LlmError, extractJson } from "./llm";
 import {
   clearFailedTask,
@@ -22,7 +22,7 @@ import {
   setSuitabilityError,
 } from "./db";
 import { type ActiveTask, JobData, Suitability, type TaskKind } from "./schemas";
-import { EVAL_SYSTEM, JOB_SYSTEM, suitabilityInput } from "./prompts";
+import { EVAL_SYSTEM, JOB_SYSTEM, isSyntheticKey, suitabilityInput } from "./prompts";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -61,10 +61,10 @@ async function processJob(id: number) {
   try {
     let text = row.raw_text;
     if (!text) {
-      text = await fetchPageText(row.url);
+      text = row.source === "pdf" ? await fetchPdfText(row.url) : await fetchPageText(row.url);
       setRawText(id, text);
     }
-    const data = await extractJson(JobData, JOB_SYSTEM, `URL: ${row.url}\n\n${text}`);
+    const data = await extractJson(JobData, JOB_SYSTEM, `${isSyntheticKey(row.url) ? "" : `URL: ${row.url}\n\n`}${text}`);
     setParsed(id, data);
   } catch (err) {
     setError(id, errText(err));

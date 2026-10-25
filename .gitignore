@@ -6,3 +6,5 @@ data/
 *.local.*
 # Xcode build output
 safari-extension/build/
+menubar/dist/
+bin/

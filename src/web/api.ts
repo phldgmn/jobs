@@ -2,6 +2,9 @@ export function errMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+// Keys for pasted text / uploaded files; not URLs, so never rendered as links.
+export const isContentKey = (url: string): boolean => url.startsWith("text:") || url.startsWith("file:");
+
 export async function send<T>(method: string, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, { ...init, method });
   if (!res.ok) {

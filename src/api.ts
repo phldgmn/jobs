@@ -23,6 +23,7 @@ import { chatStream, currentModel, ENV_MODEL, extractJson, listModels } from "./
 import { activeTasks, enqueue, enqueueEvaluate, retryFailed } from "./jobs";
 import { CV_SYSTEM, chatSystem, externalCvPrompt } from "./prompts";
 import { JobData, Profile } from "./schemas";
+import { htmlToText, pdfToText } from "./fetchPage";
 
 // Routes carry the full /api prefix; server mounts this at "/api/*".
 export const api = new Hono();
@@ -93,6 +94,80 @@ api.post("/api/jobs/content", async c => {
   return c.json({ added: [id], duplicate: false });
 });
 
+api.use("/api/jobs/pdf", cors({ origin: o => (o.startsWith("safari-web-extension://") ? o : null) }));
+// Safari sends only the URL of a PDF tab; the server downloads and extracts it, so the browser's
+// rendering never matters and the text stays exactly what the PDF contains.
+const PdfBody = z.object({ url: z.string() });
+api.post("/api/jobs/pdf", async c => {
+  const origin = c.req.header("Origin");
+  if (origin !== undefined && !origin.startsWith("safari-web-extension://")) return c.json({ error: "Forbidden origin" }, 403);
+  const body = PdfBody.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "Body must be { url: string }" }, 400);
+  const url = body.data.url.trim();
+  if (!isHttpUrl(url)) return c.json({ error: "url must be http(s)" }, 400);
+  const id = insertJob(url, "pdf");
+  if (id === null) return c.json({ added: [], duplicate: true });
+  enqueue(id);
+  return c.json({ added: [id], duplicate: false });
+});
+
+// Pasted text and uploaded files. Optional source URL is stored as the url (dedup key and link).
+// Without one, the content hash is the key. Text is stored as raw_text, then the normal queue runs.
+async function addRawText(
+  kind: "text" | "file",
+  content: Uint8Array,
+  text: string,
+  label: string,
+  sourceUrl: string | undefined,
+) {
+  const url = sourceUrl ?? `${kind}:${new Bun.CryptoHasher("sha256").update(content).digest("hex")}`;
+  const id = insertJob(url, kind);
+  if (id === null) return { added: [] as number[], skipped: [label] };
+  setRawText(id, text.slice(0, 60_000));
+  enqueue(id);
+  return { added: [id], skipped: [] as string[] };
+}
+
+// Optional URL must be http(s) when given; blank means none.
+const optionalUrl = (raw: string | undefined): string | undefined | null => {
+  const u = raw?.trim();
+  if (!u) return undefined;
+  return isHttpUrl(u) ? u : null;
+};
+
+const TextInputBody = z.object({ text: z.string(), url: z.string().optional() });
+api.post("/api/jobs/text", async c => {
+  const body = TextInputBody.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "Body must be { text: string, url?: string }" }, 400);
+  const text = body.data.text.trim();
+  if (text === "") return c.json({ error: "Text required" }, 400);
+  const sourceUrl = optionalUrl(body.data.url);
+  if (sourceUrl === null) return c.json({ error: "url must be http(s)" }, 400);
+  return c.json(await addRawText("text", new TextEncoder().encode(text), text, "pasted text", sourceUrl));
+});
+
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
+// Multipart upload: field "file", optional text field "url". PDF by magic bytes, HTML by name or MIME type.
+api.post("/api/jobs/file", async c => {
+  const form = await c.req.parseBody().catch(() => null);
+  const file = form?.file;
+  if (!(file instanceof File)) return c.json({ error: "Body must be multipart with a 'file' field" }, 400);
+  const sourceUrl = optionalUrl(typeof form?.url === "string" ? form.url : undefined);
+  if (sourceUrl === null) return c.json({ error: "url must be http(s)" }, 400);
+  if (file.size > MAX_FILE_BYTES) return c.json({ error: "File larger than 25 MB" }, 400);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const isPdf = new TextDecoder().decode(bytes.subarray(0, 5)) === "%PDF-";
+  const isHtml = /\.html?$/i.test(file.name) || file.type === "text/html";
+  if (!isPdf && !isHtml) return c.json({ error: "Unsupported file: upload a PDF or HTML" }, 400);
+  let text: string;
+  try {
+    text = isPdf ? await pdfToText(bytes) : htmlToText(new TextDecoder().decode(bytes));
+  } catch (e) {
+    return c.json({ error: errText(e) }, 400);
+  }
+  return c.json(await addRawText("file", bytes, text, file.name, sourceUrl));
+});
+
 api.post("/api/jobs/:id/text", async c => {
   const id = Number(c.req.param("id"));
   if (!getJobRow(id)) return c.json(notFound(), 404);
@@ -112,7 +187,8 @@ api.post("/api/jobs/:id/reparse", async c => {
   const body = ReparseBody.safeParse(await c.req.json().catch(() => ({})));
   if (!body.success) return c.json({ error: "Invalid body" }, 400);
   // Extension-sourced jobs have no server fetch path: keep stored page text, just reparse it.
-  resetPending(id, (body.data.refetch ?? false) && getJobRow(id)?.source !== "extension");
+  // Only server/pdf jobs have a URL to refetch; extension, text and file content is kept as-is.
+  resetPending(id, (body.data.refetch ?? false) && ["server", "pdf"].includes(getJobRow(id)?.source ?? ""));
   enqueue(id);
   return c.json({ ok: true });
 });

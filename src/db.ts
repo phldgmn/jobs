@@ -19,7 +19,8 @@ db.run(`CREATE TABLE IF NOT EXISTS jobs(
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
-// 'server' = URL fetched by server; 'extension' = page text pushed by browser, never fetched.
+// 'server' = URL fetched by server as HTML; 'extension' = page text pushed by browser, never fetched; 'pdf' = URL, server downloads and extracts PDF;
+// 'text' / 'file' = content pasted or uploaded, never fetched; url is a synthetic "text:<sha256>" / "file:<sha256>" dedup key.
 if (!db.query<{ name: string }, []>("PRAGMA table_info(jobs)").all().some(c => c.name === "source")) {
   db.run("ALTER TABLE jobs ADD COLUMN source TEXT NOT NULL DEFAULT 'server'");
 }
@@ -107,7 +108,10 @@ export function getJobRow(
 }
 
 // Returns the new id, or null when the URL already exists.
-export function insertJob(url: string, source: "server" | "extension" = "server"): number | null {
+export function insertJob(
+  url: string,
+  source: "server" | "extension" | "pdf" | "text" | "file" = "server",
+): number | null {
   const res = db.run("INSERT OR IGNORE INTO jobs(url, source) VALUES (?, ?)", [url, source]);
   return res.changes === 1 ? Number(res.lastInsertRowid) : null;
 }

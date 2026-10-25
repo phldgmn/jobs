@@ -1,27 +1,48 @@
 import { useState } from "react";
-import { Alert, App as AntApp, Button, Card, Input, Space, Spin, Typography } from "antd";
+import { Alert, App as AntApp, Button, Card, Input, Space, Spin, Tabs, Typography, Upload, type UploadFile } from "antd";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
-import { errMessage, req } from "./api";
+import { errMessage, isContentKey, req, send } from "./api";
 import { useJobs } from "./useJobs";
 import type { Job } from "../schemas";
 
 type AddResult = { added: number[]; skipped: string[] };
+type Mode = "urls" | "text" | "file";
 
 export function AddJobsPage() {
   const { jobs, error, setError, reload } = useJobs();
+  const [mode, setMode] = useState<Mode>("urls");
   const [urls, setUrls] = useState("");
+  const [pastedText, setPastedText] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [files, setFiles] = useState<UploadFile[]>([]);
   const [adding, setAdding] = useState(false);
   const [addResult, setAddResult] = useState<AddResult | null>(null);
 
   const processing = jobs.filter(j => j.status !== "parsed");
 
-  const addUrls = async () => {
+  const canAdd = mode === "urls" ? urls.trim() !== "" : mode === "text" ? pastedText.trim() !== "" : files.length > 0;
+
+  const add = async () => {
     setError(null);
     setAdding(true);
     try {
-      const res = await req<AddResult>("POST", "/api/jobs", { urls: urls.split("\n") });
+      let res: AddResult;
+      if (mode === "urls") {
+        res = await req<AddResult>("POST", "/api/jobs", { urls: urls.split("\n") });
+        setUrls("");
+      } else if (mode === "text") {
+        res = await req<AddResult>("POST", "/api/jobs/text", { text: pastedText, url: sourceUrl });
+        setPastedText("");
+        setSourceUrl("");
+      } else {
+        const form = new FormData();
+        form.append("file", files[0].originFileObj as File);
+        if (sourceUrl.trim()) form.append("url", sourceUrl.trim());
+        res = await send<AddResult>("POST", "/api/jobs/file", { body: form });
+        setFiles([]);
+        setSourceUrl("");
+      }
       setAddResult(res);
-      setUrls("");
       reload();
     } catch (e) {
       setError(errMessage(e));
@@ -37,16 +58,69 @@ export function AddJobsPage() {
       <Card
         title="Add jobs"
         extra={
-          <Button type="primary" onClick={addUrls} loading={adding} disabled={!urls.trim()}>
+          <Button type="primary" onClick={add} loading={adding} disabled={!canAdd}>
             Add
           </Button>
         }
       >
-        <Input.TextArea
-          rows={4}
-          placeholder="One job URL per line"
-          value={urls}
-          onChange={e => setUrls(e.target.value)}
+        <Tabs
+          activeKey={mode}
+          onChange={k => setMode(k as Mode)}
+          items={[
+            {
+              key: "urls",
+              label: "URLs",
+              children: (
+                <Input.TextArea
+                  rows={4}
+                  placeholder="One job URL per line"
+                  value={urls}
+                  onChange={e => setUrls(e.target.value)}
+                />
+              ),
+            },
+            {
+              key: "text",
+              label: "Text",
+              children: (
+                <Space orientation="vertical" style={{ width: "100%" }}>
+                  <Input.TextArea
+                    rows={6}
+                    placeholder="Paste the job description"
+                    value={pastedText}
+                    onChange={e => setPastedText(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Source URL (optional)"
+                    value={sourceUrl}
+                    onChange={e => setSourceUrl(e.target.value)}
+                  />
+                </Space>
+              ),
+            },
+            {
+              key: "file",
+              label: "File",
+              children: (
+                <Space orientation="vertical" style={{ width: "100%" }}>
+                  <Upload.Dragger
+                    accept=".pdf,.html,.htm,text/html,application/pdf"
+                    maxCount={1}
+                    fileList={files}
+                    beforeUpload={() => false}
+                    onChange={({ fileList }) => setFiles(fileList)}
+                  >
+                    <p>Drop a PDF or HTML file here, or click to choose</p>
+                  </Upload.Dragger>
+                  <Input
+                    placeholder="Source URL (optional)"
+                    value={sourceUrl}
+                    onChange={e => setSourceUrl(e.target.value)}
+                  />
+                </Space>
+              ),
+            },
+          ]}
         />
         {addResult && (
           <Typography.Text style={{ display: "block", marginTop: 12 }}>
@@ -87,9 +161,13 @@ function ProcessingRow({ job, onChange }: { job: Job; onChange: () => void }) {
   return (
     <Card size="small">
       <Typography.Paragraph copyable style={{ marginBottom: 8 }}>
-        <a href={job.url} target="_blank" rel="noreferrer">
-          {job.url}
-        </a>
+        {isContentKey(job.url) ? (
+          job.url
+        ) : (
+          <a href={job.url} target="_blank" rel="noreferrer">
+            {job.url}
+          </a>
+        )}
       </Typography.Paragraph>
       {pending ? (
         <Space>

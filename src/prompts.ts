@@ -19,10 +19,14 @@ export const EVAL_SYSTEM = `You rate how well a job posting fits a candidate, ba
 - \`issues\` = concrete gaps, risks, or mismatches (missing skills, location, language, salary, seniority). One item per point, short.
 - Write in English. Use only facts present in the profile and posting. Never invent experience the candidate does not list. Use [] when nothing applies.`;
 
+// text:/file: keys are content hashes, not URLs; they are left out of prompts to keep them noise-free.
+export const isSyntheticKey = (url: string): boolean => url.startsWith("text:") || url.startsWith("file:");
+
 export function suitabilityInput(profile: Profile, job: JobData, url: string): string {
   const { description, company_description: _cd, ...rest } = job;
   const jobText = JSON.stringify({ ...rest, description: description.slice(0, 4000) });
-  return `PROFILE:\n${JSON.stringify(profile)}\n\nJOB (${url}):\n${jobText}`;
+  const label = isSyntheticKey(url) ? "" : ` (${url})`;
+  return `PROFILE:\n${JSON.stringify(profile)}\n\nJOB${label}:\n${jobText}`;
 }
 
 export const CV_SYSTEM = `You extract a person's profile from their CV/resume. Keep original wording for descriptions, dates as YYYY-MM or YYYY, end=null if ongoing. Never invent information.`;

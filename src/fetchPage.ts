@@ -1,4 +1,5 @@
 import { parseHTML } from "linkedom";
+import { extractText } from "unpdf";
 
 const isJobPosting = (o: unknown): boolean => {
   if (typeof o !== "object" || o === null || !("@type" in o)) return false;
@@ -68,4 +69,29 @@ export async function fetchPageText(url: string): Promise<string> {
 
   // shortcut: no headless browser; JS-rendered pages need pasted text. Add Playwright if this becomes common.
   return text.slice(0, 60_000);
+}
+
+const MAX_PDF_BYTES = 25 * 1024 * 1024;
+
+// Text exactly as the PDF layer yields it, pages joined by newline. No rewording, no LLM.
+export async function pdfToText(data: Uint8Array): Promise<string> {
+  // Magic bytes, not Content-Type: servers mislabel PDFs and HTML error pages.
+  if (new TextDecoder().decode(data.subarray(0, 5)) !== "%PDF-") throw new Error("Downloaded file is not a PDF.");
+  const { text } = await extractText(data, { mergePages: true });
+  const out = (Array.isArray(text) ? text.join("\n") : text).trim();
+  // shortcut: no OCR, scanned PDFs fail here. Add OCR if scanned postings become common.
+  if (out === "") throw new Error("PDF contains no extractable text (scanned image?).");
+  return out.slice(0, 60_000);
+}
+
+export async function fetchPdfText(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36" },
+    signal: AbortSignal.timeout(60_000),
+    redirect: "follow",
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} fetching PDF`);
+  const data = new Uint8Array(await res.arrayBuffer());
+  if (data.byteLength > MAX_PDF_BYTES) throw new Error("PDF larger than 25 MB.");
+  return pdfToText(data);
 }

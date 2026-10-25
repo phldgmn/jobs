@@ -1,6 +1,6 @@
 # Jobs Capture (Safari)
 
-Toolbar button that sends the current tab's rendered text to the local Jobs server (`POST /api/jobs/content`). Only page content is sent, never the URL, so the server does not scrape sites that forbid headless or server-side access.
+Toolbar button sends current tab's rendered text to local Jobs server (`POST /api/jobs/content`). Only page content sent, never URL, so server does not scrape sites that forbid headless or server-side access. Exception: PDF tabs (URL ends `.pdf` or document is `application/pdf`) send only the URL to `POST /api/jobs/pdf`; the server downloads and extracts the PDF text itself.
 
 ## Build the Safari app (needs full Xcode)
 
