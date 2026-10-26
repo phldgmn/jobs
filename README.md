@@ -15,6 +15,7 @@ Open http://localhost:3000. The server binds 127.0.0.1 only; there is no auth, s
 ## Providers
 
 Set `OPENAI_BASE_URL`, `OPENAI_API_KEY` and `LLM_MODEL`:
+Optional: `LLM_REASONING_EFFORT` (e.g. `none`, `low`, `medium`, `high`) sets reasoning effort for every call; empty uses the provider default. The header "Reasoning effort" control overrides it at runtime. Accepted values depend on the model; unsupported ones fail with the provider's error.
 
 - OpenAI: `https://api.openai.com/v1`
 - OpenRouter: `https://openrouter.ai/api/v1`

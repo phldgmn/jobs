@@ -6,6 +6,7 @@ import { extractText } from "unpdf";
 import {
   deleteJob,
   getModelOverride,
+  getReasoningOverride,
   getJobRow,
   getProfile,
   hasProfile,
@@ -18,8 +19,9 @@ import {
   setExpired,
   setParsed,
   setModelOverride,
+  setReasoningOverride,
 } from "./db";
-import { chatStream, currentModel, ENV_MODEL, extractJson, listModels } from "./llm";
+import { chatStream, currentModel, currentReasoning, ENV_MODEL, ENV_REASONING, extractJson, listModels } from "./llm";
 import { activeTasks, enqueue, enqueueEvaluate, retryFailed } from "./jobs";
 import { CV_SYSTEM, chatSystem, externalCvPrompt } from "./prompts";
 import { JobData, Profile } from "./schemas";
@@ -349,4 +351,18 @@ api.put("/api/model", async c => {
   if (!body.success) return c.json({ error: "Body must be { model: string | null }" }, 400);
   setModelOverride(body.data.model);
   return c.json({ model: currentModel(), env: ENV_MODEL, override: getModelOverride() });
+});
+
+// Free text on purpose: accepted levels vary per provider/model and are not discoverable via /models.
+const ReasoningBody = z.object({ effort: z.string().trim().min(1).nullable() });
+
+api.get("/api/reasoning", c =>
+  c.json({ effort: currentReasoning(), env: ENV_REASONING, override: getReasoningOverride() }),
+);
+
+api.put("/api/reasoning", async c => {
+  const body = ReasoningBody.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "Body must be { effort: string | null }" }, 400);
+  setReasoningOverride(body.data.effort);
+  return c.json({ effort: currentReasoning(), env: ENV_REASONING, override: getReasoningOverride() });
 });

@@ -6,6 +6,7 @@ import { ProfilePage } from "./ProfilePage";
 import { ChatPage } from "./ChatPage";
 import { TasksPage } from "./TasksPage";
 import { ModelSelect } from "./ModelSelect";
+import { ReasoningSelect } from "./ReasoningSelect";
 
 const tabs = ["jobs", "add", "profile", "chat", "tasks"] as const;
 type Tab = (typeof tabs)[number];
@@ -40,6 +41,7 @@ export function App() {
               style={{ flex: 1, minWidth: 0 }}
             />
             <ModelSelect />
+            <ReasoningSelect />
           </Layout.Header>
           <Layout.Content style={{ padding: 24, maxWidth: 1200, width: "100%", margin: "0 auto" }}>
             {tab === "jobs" && <JobsPage />}

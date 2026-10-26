@@ -281,19 +281,35 @@ export function saveProfile(p: Profile) {
   );
 }
 
-// Runtime model override set from the UI; absent means LLM_MODEL env default.
+// Runtime overrides set from the UI; absent means the env default.
 db.run(`CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
 
+function getSetting(key: string): string | null {
+  return db.query<{ value: string }, [string]>("SELECT value FROM settings WHERE key = ?").get(key)?.value ?? null;
+}
+
+function setSetting(key: string, value: string | null) {
+  if (value === null) db.run("DELETE FROM settings WHERE key = ?", [key]);
+  else
+    db.run(
+      `INSERT INTO settings(key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      [key, value],
+    );
+}
+
 export function getModelOverride(): string | null {
-  return db.query<{ value: string }, []>("SELECT value FROM settings WHERE key = 'model'").get()?.value ?? null;
+  return getSetting("model");
 }
 
 export function setModelOverride(model: string | null) {
-  if (model === null) db.run("DELETE FROM settings WHERE key = 'model'");
-  else
-    db.run(
-      `INSERT INTO settings(key, value) VALUES ('model', ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      [model],
-    );
+  setSetting("model", model);
+}
+
+export function getReasoningOverride(): string | null {
+  return getSetting("reasoning");
+}
+
+export function setReasoningOverride(effort: string | null) {
+  setSetting("reasoning", effort);
 }

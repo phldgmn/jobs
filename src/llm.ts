@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { z } from "zod";
-import { getModelOverride } from "./db";
+import { getModelOverride, getReasoningOverride } from "./db";
 import type { LlmRequest } from "./schemas";
 
 const client = new OpenAI({
@@ -13,6 +13,20 @@ export const ENV_MODEL = process.env.LLM_MODEL ?? "gpt-4.1-mini";
 // UI override (persisted) wins over the LLM_MODEL env default; read per call so changes apply immediately.
 export function currentModel(): string {
   return getModelOverride() ?? ENV_MODEL;
+}
+
+// Reasoning effort is free text (levels differ per model); null sends nothing and the provider default applies.
+export const ENV_REASONING: string | null = process.env.LLM_REASONING_EFFORT?.trim() || null;
+
+export function currentReasoning(): string | null {
+  return getReasoningOverride() ?? ENV_REASONING;
+}
+
+// Only attach the field when set: providers/models without reasoning support reject it.
+// SDK types reasoning_effort as a closed union; levels vary per model, so the value is passed through as-is.
+function effortParam(): Record<string, string> {
+  const effort = currentReasoning();
+  return effort ? { reasoning_effort: effort } : {};
 }
 
 export async function listModels(): Promise<string[]> {
@@ -65,6 +79,7 @@ export async function extractJson<S extends z.ZodType>(
         messages: msgs,
         temperature: 0,
         response_format: { type: "json_object" }, // json_object, not json_schema: broadest compatibility
+        ...effortParam(),
       });
       return res.choices[0]?.message.content ?? "";
     } catch (e) {
@@ -111,6 +126,7 @@ export async function* chatStream(messages: Msg[]): AsyncGenerator<ChatDelta> {
     messages,
     temperature: 0.3,
     stream: true,
+    ...effortParam(),
   });
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta;
