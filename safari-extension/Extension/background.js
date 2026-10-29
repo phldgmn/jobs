@@ -1,12 +1,12 @@
 const DEFAULT_ENDPOINT = "http://127.0.0.1:48173";
 
-// Runs in the page: rendered text plus JSON-LD, same shape the server's htmlToText produces.
+// Runs in every frame: rendered text plus JSON-LD, combined in sendPage.
 function capturePage() {
   const jsonLd = [...document.querySelectorAll('script[type="application/ld+json"]')]
     .map(s => s.textContent ?? "")
     .join("\n");
   const text = (document.body?.innerText ?? "").replace(/\s+/g, " ").trim();
-  return (jsonLd ? "STRUCTURED DATA (JSON-LD):\n" + jsonLd + "\n\n" : "") + "PAGE TEXT:\n" + text;
+  return { jsonLd, text, url: location.href };
 }
 
 async function alertTab(tabId, message) {
@@ -64,13 +64,25 @@ async function sendPage(tab) {
     return;
   }
 
-  const [{ result: page } = {}] = await browser.scripting.executeScript({
-    target: { tabId: tab.id },
+  // allFrames: iframes often hold the actual content (job boards, embedded postings).
+  const results = await browser.scripting.executeScript({
+    target: { tabId: tab.id, allFrames: true },
     func: capturePage,
   });
-  if (!page || page.slice(page.indexOf("PAGE TEXT:") + "PAGE TEXT:".length).trim() === "") {
+  const frames = results
+    .filter(r => r.result)
+    .map(r => ({ frameId: r.frameId, ...r.result }))
+    .sort((a, b) => a.frameId - b.frameId); // top frame (frameId 0) first
+
+  const jsonLd = frames.map(f => f.jsonLd).filter(Boolean).join("\n");
+  const text = frames
+    .filter(f => f.text)
+    .map(f => (f.frameId === 0 ? f.text : `FRAME (${f.url}):\n${f.text}`))
+    .join("\n\n");
+  if (text === "") {
     throw new Error("No readable text on this page.");
   }
+  const page = (jsonLd ? "STRUCTURED DATA (JSON-LD):\n" + jsonLd + "\n\n" : "") + "PAGE TEXT:\n" + text;
 
   await postToServer(endpoint, "/api/jobs/content", { url: url.href, text: page });
 }
