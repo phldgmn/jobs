@@ -42,7 +42,7 @@ The server binds `127.0.0.1` only, on port 48173 (`SERVER_PORT` in `menubar/Info
 
 The app spawns the compiled server (`bun build --compile`, embedded in the app bundle) with the repo as its working directory, so it finds `.env` and `data/`. Server output goes to `~/Library/Logs/jobs-menubar/server.log`.
 
-The Safari extension ("Jobs Capture", source in `safari-extension/`) is embedded in `Jobs.app` as `PlugIns/PageSender Extension.appex`. `make` builds it with `xcodebuild` and signs it with the Apple Development identity (team `T592P4FM4E`), because Safari only loads team-signed extensions. To enable it, open Safari > Settings > Extensions and tick "Jobs Capture". Its default server URL is `http://127.0.0.1:48173`.
+The Safari extension ("Jobs Capture", source in `safari-extension/`) is embedded in `Jobs.app` as `PlugIns/Jobs Capture Extension.appex` (bundle ID `eu.dgmn.jobsmenubar.Extension`). `make` builds it with `xcodebuild` and signs it with the Apple Development identity (team `T592P4FM4E`), because Safari only loads team-signed extensions. To enable it, open Safari > Settings > Extensions and tick "Jobs Capture". Its default server URL is `http://127.0.0.1:48173`.
 
 The app icon is generated from `safari-extension/icon.png` and stored as `menubar/AppIcon.icns`. The menu bar icon stays the briefcase SF Symbol.
 

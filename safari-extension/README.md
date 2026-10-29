@@ -5,7 +5,7 @@ Toolbar button sends current tab's rendered text to local Jobs server (`POST /ap
 ## Build the Safari app (needs full Xcode)
 
 ```sh
-xcrun safari-web-extension-converter safari-extension/Extension --app-name "Jobs Capture" --bundle-identifier local.jobs.capture --project-location safari-extension/build
+xcrun safari-web-extension-converter safari-extension/Extension --app-name "Jobs Capture" --bundle-identifier eu.dgmn.jobsmenubar --project-location safari-extension/build --macos-only
 ```
 
 Open the generated project in Xcode, run the app once, then enable the extension in Safari > Settings > Extensions. Grant it access to the sites you use.
