@@ -51,8 +51,13 @@ export type Job = {
   suitability: Suitability | null;
   suitability_error: string | null;
   evaluating: boolean;
+  applied_at: string | null; // set when marked applied; null = not applied
+  materials: Material[];
   created_at: string;
 };
+
+// File supplied with an application. Content is fetched by id, never inlined in the job list.
+export type Material = { id: number; name: string; mime: string; size: number; created_at: string };
 
 const period = { start: str, end: str }; // "YYYY-MM" or "YYYY"; end null = present
 

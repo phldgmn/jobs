@@ -35,6 +35,8 @@ const job = (id: number, score: number | null): Job => ({
   suitability: score === null ? null : { score, strengths: [], issues: [] },
   suitability_error: null,
   evaluating: false,
+  applied_at: null,
+  materials: [],
   created_at: "2026-01-01 00:00:00",
 });
 

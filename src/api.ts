@@ -5,6 +5,9 @@ import { z } from "zod";
 import { extractText } from "unpdf";
 import {
   deleteJob,
+  addMaterial,
+  deleteMaterial,
+  getMaterial,
   getModelOverride,
   getReasoningOverride,
   getJobRow,
@@ -20,6 +23,7 @@ import {
   setParsed,
   setModelOverride,
   setReasoningOverride,
+  setApplied,
 } from "./db";
 import { chatStream, currentModel, currentReasoning, ENV_MODEL, ENV_REASONING, extractJson, listModels } from "./llm";
 import { activeTasks, enqueue, enqueueEvaluate, retryFailed } from "./jobs";
@@ -248,6 +252,53 @@ api.post("/api/jobs/:id/expired", async c => {
   const body = z.object({ expired: z.boolean() }).safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "Body must be { expired: boolean }" }, 400);
   if (!setExpired(id, body.data.expired)) return c.json({ error: "Job not parsed yet" }, 409);
+  return c.json({ ok: true });
+});
+
+api.post("/api/jobs/:id/applied", async c => {
+  const id = Number(c.req.param("id"));
+  if (!getJobRow(id)) return c.json(notFound(), 404);
+  const body = z.object({ applied: z.boolean() }).safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "Body must be { applied: boolean }" }, 400);
+  setApplied(id, body.data.applied);
+  return c.json({ ok: true });
+});
+
+// Application materials: any number of files per job. Stored verbatim; never parsed.
+const MAX_MATERIAL_BYTES = 25 * 1024 * 1024;
+api.post("/api/jobs/:id/materials", async c => {
+  const id = Number(c.req.param("id"));
+  if (!getJobRow(id)) return c.json(notFound(), 404);
+  const form = await c.req.parseBody({ all: true }).catch(() => null);
+  const files = (Array.isArray(form?.file) ? form.file : [form?.file]).filter((f): f is File => f instanceof File);
+  if (files.length === 0) return c.json({ error: "Body must be multipart with one or more 'file' fields" }, 400);
+  const tooBig = files.find(f => f.size > MAX_MATERIAL_BYTES);
+  if (tooBig) return c.json({ error: `${tooBig.name} larger than 25 MB` }, 400);
+  for (const f of files) {
+    addMaterial(id, f.name, f.type || "application/octet-stream", new Uint8Array(await f.arrayBuffer()));
+  }
+  return c.json({ added: files.length });
+});
+
+// Inline only for types the browser renders safely; anything else (incl. HTML, SVG) downloads.
+const INLINE_MIME = /^(application\/pdf|image\/(png|jpeg|gif|webp))$/;
+api.get("/api/materials/:id", c => {
+  const m = getMaterial(Number(c.req.param("id")));
+  if (!m) return c.json(notFound(), 404);
+  const inline = INLINE_MIME.test(m.mime);
+  const disposition = `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(m.name)}`;
+  return new Response(m.content.slice(), {
+    headers: {
+      "Content-Type": m.mime,
+      "Content-Disposition": disposition,
+      "Content-Security-Policy": "sandbox",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+});
+
+api.delete("/api/materials/:id", c => {
+  if (!deleteMaterial(Number(c.req.param("id")))) return c.json(notFound(), 404);
   return c.json({ ok: true });
 });
 

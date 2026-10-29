@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { type ActiveTask, type FailedTask, type Job, JobData, LlmRequest, Profile, Suitability, type TaskKind } from "./schemas";
+import { type ActiveTask, type FailedTask, type Job, JobData, LlmRequest, Material, Profile, Suitability, type TaskKind } from "./schemas";
 
 const path = process.env.DB_PATH ?? "data/jobs.db";
 if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -28,6 +28,8 @@ if (!db.query<{ name: string }, []>("PRAGMA table_info(jobs)").all().some(c => c
 const cols = db.query<{ name: string }, []>("PRAGMA table_info(jobs)").all().map(c => c.name);
 if (!cols.includes("suitability")) db.run("ALTER TABLE jobs ADD COLUMN suitability TEXT");
 if (!cols.includes("suitability_error")) db.run("ALTER TABLE jobs ADD COLUMN suitability_error TEXT");
+// Set when the user marks the job applied; hidden from the default list view.
+if (!cols.includes("applied_at")) db.run("ALTER TABLE jobs ADD COLUMN applied_at TEXT");
 db.run(`CREATE TABLE IF NOT EXISTS profile(
   id INTEGER PRIMARY KEY CHECK (id = 1),
   data TEXT NOT NULL,
@@ -56,6 +58,17 @@ db.run(`CREATE TABLE IF NOT EXISTS active_tasks(
   started_at TEXT
 )`);
 
+// Files supplied with an application. Stored as BLOBs so the single SQLite file stays the whole state.
+db.run(`CREATE TABLE IF NOT EXISTS materials(
+  id INTEGER PRIMARY KEY,
+  job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  content BLOB NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+
 type JobRow = {
   id: number;
   url: string;
@@ -64,15 +77,34 @@ type JobRow = {
   data: string | null;
   suitability: string | null;
   suitability_error: string | null;
+  applied_at: string | null;
   created_at: string;
 };
 
-const JOB_COLS = "id, url, status, error, data, suitability, suitability_error, created_at";
+const JOB_COLS = "id, url, status, error, data, suitability, suitability_error, applied_at, created_at";
+
+type MaterialRow = Material & { job_id: number };
+const MATERIAL_COLS = "id, job_id, name, mime, size, created_at";
 
 // Job ids with an evaluation queued or running. In-memory, like the queue: resets on restart.
 export const evaluating = new Set<number>();
 
-function toJob(r: JobRow): Job {
+// Materials grouped by job id; null jobId = all jobs.
+function materialsByJob(jobId: number | null): Map<number, Material[]> {
+  const rows =
+    jobId === null
+      ? db.query<MaterialRow, []>(`SELECT ${MATERIAL_COLS} FROM materials ORDER BY id`).all()
+      : db.query<MaterialRow, [number]>(`SELECT ${MATERIAL_COLS} FROM materials WHERE job_id = ? ORDER BY id`).all(jobId);
+  const map = new Map<number, Material[]>();
+  for (const r of rows) {
+    const list = map.get(r.job_id) ?? [];
+    list.push({ id: r.id, name: r.name, mime: r.mime, size: r.size, created_at: r.created_at });
+    map.set(r.job_id, list);
+  }
+  return map;
+}
+
+function toJob(r: JobRow, materials: Material[]): Job {
   return {
     id: r.id,
     url: r.url,
@@ -82,17 +114,23 @@ function toJob(r: JobRow): Job {
     suitability: r.suitability ? Suitability.parse(JSON.parse(r.suitability)) : null,
     suitability_error: r.suitability_error,
     evaluating: evaluating.has(r.id),
+    applied_at: r.applied_at,
+    materials,
     created_at: r.created_at,
   };
 }
 
 export function listJobs(): Job[] {
-  return db.query<JobRow, []>(`SELECT ${JOB_COLS} FROM jobs ORDER BY id DESC`).all().map(toJob);
+  const mats = materialsByJob(null);
+  return db
+    .query<JobRow, []>(`SELECT ${JOB_COLS} FROM jobs ORDER BY id DESC`)
+    .all()
+    .map(r => toJob(r, mats.get(r.id) ?? []));
 }
 
 export function getJob(id: number): Job | null {
   const row = db.query<JobRow, [number]>(`SELECT ${JOB_COLS} FROM jobs WHERE id = ?`).get(id);
-  return row ? toJob(row) : null;
+  return row ? toJob(row, materialsByJob(id).get(id) ?? []) : null;
 }
 
 export function getJobRow(
@@ -138,6 +176,38 @@ export function setSuitabilityError(id: number, msg: string) {
   db.run("UPDATE jobs SET suitability_error = ?, updated_at = datetime('now') WHERE id = ?", [msg, id]);
 }
 
+// Keeps the original applied date when re-marking an already applied job.
+export function setApplied(id: number, applied: boolean) {
+  db.run(
+    "UPDATE jobs SET applied_at = CASE WHEN ? THEN COALESCE(applied_at, datetime('now')) ELSE NULL END, updated_at = datetime('now') WHERE id = ?",
+    [applied ? 1 : 0, id],
+  );
+}
+
+export function addMaterial(jobId: number, name: string, mime: string, content: Uint8Array) {
+  db.run("INSERT INTO materials(job_id, name, mime, size, content) VALUES (?, ?, ?, ?, ?)", [
+    jobId,
+    name,
+    mime,
+    content.byteLength,
+    content,
+  ]);
+}
+
+export function getMaterial(id: number): { name: string; mime: string; content: Uint8Array } | null {
+  return (
+    db
+      .query<{ name: string; mime: string; content: Uint8Array }, [number]>(
+        "SELECT name, mime, content FROM materials WHERE id = ?",
+      )
+      .get(id) ?? null
+  );
+}
+
+export function deleteMaterial(id: number): boolean {
+  return db.run("DELETE FROM materials WHERE id = ?", [id]).changes === 1;
+}
+
 export function setError(id: number, msg: string) {
   db.run("UPDATE jobs SET status = 'error', error = ?, updated_at = datetime('now') WHERE id = ?", [
     msg,
@@ -155,6 +225,7 @@ export function resetPending(id: number, clearRaw: boolean) {
 export function deleteJob(id: number) {
   db.run("DELETE FROM failed_tasks WHERE job_id = ?", [id]);
   db.run("DELETE FROM active_tasks WHERE job_id = ?", [id]);
+  db.run("DELETE FROM materials WHERE job_id = ?", [id]);
   db.run("DELETE FROM jobs WHERE id = ?", [id]);
 }
 

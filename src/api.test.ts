@@ -41,3 +41,39 @@ describe("POST /api/jobs/file", () => {
     expect(await res.json()).toEqual({ error: "Unsupported file: upload a PDF or HTML" });
   });
 });
+
+describe("applied and materials", () => {
+  const addJob = async () => {
+    const res = await postJson("/api/jobs/text", { text: `job ${Math.random()}` });
+    return (await res.json()).added[0] as number;
+  };
+  const listJob = async (id: number) =>
+    (await (await api.fetch(new Request("http://x/api/jobs"))).json()).find((j: { id: number }) => j.id === id);
+
+  test("applied toggle sets and clears applied_at", async () => {
+    const id = await addJob();
+    await postJson(`/api/jobs/${id}/applied`, { applied: true });
+    expect((await listJob(id)).applied_at).not.toBeNull();
+    await postJson(`/api/jobs/${id}/applied`, { applied: false });
+    expect((await listJob(id)).applied_at).toBeNull();
+  });
+
+  test("uploads several files and serves each with a sandbox CSP", async () => {
+    const id = await addJob();
+    const form = new FormData();
+    form.append("file", new File(["cv bytes"], "cv.pdf", { type: "application/pdf" }));
+    form.append("file", new File(["<script>x</script>"], "letter.html", { type: "text/html" }));
+    const up = await api.fetch(new Request(`http://x/api/jobs/${id}/materials`, { method: "POST", body: form }));
+    expect(up.status).toBe(200);
+    expect((await up.json()).added).toBe(2);
+
+    const job = await listJob(id);
+    expect(job.materials.map((m: { name: string }) => m.name)).toEqual(["cv.pdf", "letter.html"]);
+
+    const html = await api.fetch(new Request(`http://x/api/materials/${job.materials[1].id}`));
+    expect(html.headers.get("Content-Security-Policy")).toBe("sandbox");
+    expect(html.headers.get("Content-Disposition")).toMatch(/^attachment/);
+    const pdf = await api.fetch(new Request(`http://x/api/materials/${job.materials[0].id}`));
+    expect(pdf.headers.get("Content-Disposition")).toMatch(/^inline/);
+  });
+});

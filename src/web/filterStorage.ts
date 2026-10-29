@@ -9,6 +9,7 @@ const Stored = z.object({
   q: z.string(),
   remote: z.enum(["any", "full", "mostly", "partly", "none", "unknown"]),
   visibility: z.enum(["applicable", "expired", "all"]),
+  applied: z.enum(["hide", "only", "all"]).default("hide"),
   minFit: z.number().int().min(0).max(100).default(0),
   sort: z.enum(["deadline_asc", "deadline_desc", "added_desc", "company_asc", "fit_desc", "fit_asc"]),
 });

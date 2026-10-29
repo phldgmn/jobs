@@ -33,6 +33,8 @@ const job = (id: number, d: Partial<JobData>): Job => ({
   suitability: null,
   suitability_error: null,
   evaluating: false,
+  applied_at: null,
+  materials: [],
   error: null,
   data: data(d),
   created_at: "2026-01-01 00:00:00",
@@ -83,5 +85,26 @@ describe("applyFilters visibility", () => {
 describe("applyFilters text search", () => {
   test("matches a term only present in nice_to_haves, case-insensitively", () => {
     expect(run({ q: "TERRAFORM" })).toEqual([2]);
+  });
+});
+
+describe("applyFilters applied", () => {
+  const applied = [
+    { ...job(1, { title: "A", deadline: null }), applied_at: "2026-02-01 10:00:00" },
+    job(2, { title: "B", deadline: null }),
+  ];
+  const ids = (f: Partial<Filters>) =>
+    applyFilters(applied, { ...defaultFilters, visibility: "all", ...f }, TODAY).map(j => j.id);
+
+  test("default hides applied jobs", () => {
+    expect(ids({})).toEqual([2]);
+  });
+
+  test("only shows applied jobs", () => {
+    expect(ids({ applied: "only" })).toEqual([1]);
+  });
+
+  test("all shows applied and not applied", () => {
+    expect(ids({ applied: "all" })).toEqual([2, 1]);
   });
 });

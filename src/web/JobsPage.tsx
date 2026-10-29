@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Descriptions, Form, Input, InputNumber, Select, Slider, Space, Switch, Tooltip, Typography } from "antd";
+import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Descriptions, Form, Input, InputNumber, List, Select, Slider, Space, Switch, Tag, Tooltip, Typography, Upload, type UploadFile } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { DeleteOutlined, EditOutlined, ReloadOutlined, StopOutlined } from "@ant-design/icons";
-import { errMessage, isContentKey, req } from "./api";
+import { CheckOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from "@ant-design/icons";
+import { errMessage, isContentKey, req, send } from "./api";
 import { applyFilters, FIT_PARTIAL, FIT_STRONG, type Filters } from "./filter";
 import { loadFilters, saveFilters } from "./filterStorage";
 import { relativeDeadline } from "./relativeDate";
@@ -21,6 +21,12 @@ const remoteOptions: { value: Filters["remote"]; label: string }[] = [
 const visibilityOptions: { value: Filters["visibility"]; label: string }[] = [
   { value: "applicable", label: "Still applicable" },
   { value: "expired", label: "Expired" },
+  { value: "all", label: "All" },
+];
+
+const appliedOptions: { value: Filters["applied"]; label: string }[] = [
+  { value: "hide", label: "Not applied" },
+  { value: "only", label: "Applied" },
   { value: "all", label: "All" },
 ];
 
@@ -100,6 +106,13 @@ export function JobsPage() {
             options={visibilityOptions}
             style={{ width: 160 }}
           />
+          <Select
+            aria-label="Applied"
+            value={filters.applied}
+            onChange={v => update({ applied: v })}
+            options={appliedOptions}
+            style={{ width: 160 }}
+          />
           <Space style={{ width: 260 }}>
             <Typography.Text type="secondary" style={{ whiteSpace: "nowrap" }}>
               Min fit
@@ -157,6 +170,7 @@ function JobSummary({ job, today }: { job: Job; today: string }) {
       <FitBadge score={job.suitability?.score ?? null} />
       <strong>{d.title}</strong>
       <Typography.Text type="secondary">{company}</Typography.Text>
+      {job.applied_at && <Tag color="blue">Applied</Tag>}
       <div style={{ marginLeft: "auto", paddingLeft: 16, whiteSpace: "nowrap" }}>
         <Deadline data={d} today={today} past={past} />
       </div>
@@ -173,6 +187,75 @@ function Deadline({ data: d, today, past }: { data: JobData; today: string; past
     <Tooltip title={d.deadline}>
       <Typography.Text type={type}>{relativeDeadline(d.deadline, today)}</Typography.Text>
     </Tooltip>
+  );
+}
+
+// Materials: upload any number of files; list with view, download and delete.
+const INLINE_MIME = /^(application\/pdf|image\/(png|jpeg|gif|webp))$/;
+// View opens inline only for types the server allows inline; download always works.
+function MaterialsSection({ job, onChange, setError }: { job: Job; onChange: () => void; setError: (s: string | null) => void }) {
+  const [files, setFiles] = useState<UploadFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const upload = async () => {
+    const form = new FormData();
+    for (const f of files) form.append("file", f.originFileObj as File);
+    setUploading(true);
+    try {
+      await send("POST", `/api/jobs/${job.id}/materials`, { body: form });
+      setFiles([]);
+      onChange();
+    } catch (e) {
+      setError(errMessage(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const remove = (id: number) =>
+    req("DELETE", `/api/materials/${id}`)
+      .then(onChange)
+      .catch(e => setError(errMessage(e)));
+
+  return (
+    <div>
+      <Typography.Title level={5}>Application materials</Typography.Title>
+      {job.materials.length > 0 && (
+        <List
+          size="small"
+          bordered
+          dataSource={job.materials}
+          renderItem={m => (
+            <List.Item
+              actions={[
+                // Mirrors the server's INLINE_MIME; other types would just download.
+                ...(INLINE_MIME.test(m.mime)
+                  ? [
+                      <a key="view" href={`/api/materials/${m.id}`} target="_blank" rel="noreferrer">
+                        View
+                      </a>,
+                    ]
+                  : []),
+                <a key="dl" href={`/api/materials/${m.id}`} download={m.name}>
+                  <DownloadOutlined /> Download
+                </a>,
+                <Button key="del" type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => remove(m.id)} />,
+              ]}
+            >
+              {m.name} <Typography.Text type="secondary">({Math.ceil(m.size / 1024)} KB)</Typography.Text>
+            </List.Item>
+          )}
+        />
+      )}
+      <Space orientation="vertical" style={{ width: "100%", marginTop: 12 }}>
+        <Upload.Dragger multiple fileList={files} beforeUpload={() => false} onChange={({ fileList }) => setFiles(fileList)}>
+          <p>Drop files here (CV, cover letter, ...), or click to choose</p>
+        </Upload.Dragger>
+        <Button icon={<UploadOutlined />} onClick={upload} loading={uploading} disabled={files.length === 0}>
+          {files.length === 0 ? "Upload" : `Upload ${files.length} file${files.length === 1 ? "" : "s"}`}
+        </Button>
+      </Space>
+    </div>
   );
 }
 
@@ -222,6 +305,11 @@ function JobBody({
 
   const toggleExpired = () =>
     req("POST", `/api/jobs/${job.id}/expired`, { expired: !d.expired })
+      .then(onChange)
+      .catch(e => setError(errMessage(e)));
+
+  const toggleApplied = () =>
+    req("POST", `/api/jobs/${job.id}/applied`, { applied: job.applied_at === null })
       .then(onChange)
       .catch(e => setError(errMessage(e)));
 
@@ -507,6 +595,9 @@ function JobBody({
           </Space>
         ) : (
           <Space>
+            <Button icon={<CheckOutlined />} onClick={toggleApplied}>
+              {job.applied_at ? "Mark not applied" : "Mark applied"}
+            </Button>
             <Button icon={<EditOutlined />} onClick={startEdit}>
               Edit
             </Button>
@@ -524,6 +615,8 @@ function JobBody({
             </Button>
           </Space>
         )}
+
+        {!editing && <MaterialsSection job={job} onChange={onChange} setError={setError} />}
       </Space>
     </Form>
   );

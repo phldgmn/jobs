@@ -10,6 +10,8 @@ export type Filters = {
   q: string;
   remote: Remote | "any";
   visibility: "applicable" | "expired" | "all";
+  // Applied jobs are hidden by default; "only" shows just applied jobs.
+  applied: "hide" | "only" | "all";
   // Minimum fit score. 0 = no filter; any positive value also hides unscored jobs.
   minFit: number;
   sort: "deadline_asc" | "deadline_desc" | "added_desc" | "company_asc" | "fit_desc" | "fit_asc";
@@ -19,6 +21,7 @@ export const defaultFilters: Filters = {
   q: "",
   remote: "any",
   visibility: "applicable",
+  applied: "hide",
   minFit: 0,
   sort: "deadline_asc",
 };
@@ -96,6 +99,9 @@ export function applyFilters(jobs: Job[], f: Filters, today: string): Job[] {
     const expired = d.expired || (d.deadline !== null && d.deadline < today);
     if (f.visibility === "applicable" && expired) return false;
     if (f.visibility === "expired" && !expired) return false;
+    const isApplied = Boolean(job.applied_at);
+    if (f.applied === "hide" && isApplied) return false;
+    if (f.applied === "only" && !isApplied) return false;
     return true;
   });
 

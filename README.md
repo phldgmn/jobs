@@ -27,6 +27,8 @@ Optional: `LLM_REASONING_EFFORT` (e.g. `none`, `low`, `medium`, `high`) sets rea
 - **Jobs**: paste URLs, one per line. Pages are fetched and parsed in the background. For JS-rendered sites (LinkedIn, Workday, ...) fetch fails; use "Paste text" on the failed row.
 - **Profile**: edit JSON or YAML directly. Import a CV (PDF/TXT/MD) for an LLM draft profile, review it, then Save. "Copy prompt external agent" gives a prompt you can use with another tool to produce a profile.
 - **Chat**: ask about fit and deadlines. The answer uses your profile and the open (not expired) jobs.
+- **Applied**: "Mark applied" on a job hides it from the default list. Use the "Applied" filter (Not applied / Applied / All) to find it again.
+- **Materials**: on any job, drop one or more files (CV, cover letter, ...) under "Application materials". PDFs and images open inline; everything else downloads. Files are stored in `data/jobs.db`, up to 25 MB each. Served with a `sandbox` CSP, so uploaded HTML cannot run in the app.
 
 ## Menu bar app
 
