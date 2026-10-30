@@ -147,7 +147,7 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
         <Collapse
           items={visible.map(j => ({
             key: String(j.id),
-            label: <JobSummary job={j} today={today} />,
+            label: <JobSummary job={j} today={today} applied={applied} />,
             children: <JobBody job={j} today={today} onChange={reload} setError={setError} />,
           }))}
         />
@@ -169,7 +169,7 @@ function FitBadge({ score }: { score: number | null }) {
   );
 }
 
-function JobSummary({ job, today }: { job: Job; today: string }) {
+function JobSummary({ job, today, applied }: { job: Job; today: string; applied: boolean }) {
   const d: JobData | null = job.data;
   if (!d) return null;
   const past = d.expired || (d.deadline !== null && d.deadline < today);
@@ -181,9 +181,19 @@ function JobSummary({ job, today }: { job: Job; today: string }) {
       <strong>{d.title}</strong>
       <Typography.Text type="secondary">{company}</Typography.Text>
       <div style={{ marginLeft: "auto", paddingLeft: 16, whiteSpace: "nowrap" }}>
-        <Deadline data={d} today={today} past={past} />
+        {applied && job.applied_at ? <AppliedAt at={job.applied_at} today={today} /> : <Deadline data={d} today={today} past={past} />}
       </div>
     </div>
+  );
+}
+
+// Applied time as relative date; hover shows the local absolute time. SQLite stores UTC "YYYY-MM-DD HH:MM:SS".
+function AppliedAt({ at, today }: { at: string; today: string }) {
+  const absolute = new Date(at.replace(" ", "T") + "Z").toLocaleString();
+  return (
+    <Tooltip title={absolute}>
+      <Typography.Text>{relativeDeadline(at.slice(0, 10), today)}</Typography.Text>
+    </Tooltip>
   );
 }
 
