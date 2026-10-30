@@ -1,3 +1,10 @@
 body {
   margin: 0;
 }
+
+/* Job rows: the collapse title must shrink so its clipped children can ellipsize. */
+.ant-collapse-header-text,
+.ant-collapse-title {
+  min-width: 0;
+  overflow: hidden;
+}
