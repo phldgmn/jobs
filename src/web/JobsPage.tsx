@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Descriptions, Dropdown, Form, Input, InputNumber, List, Select, Slider, Space, Switch, Tooltip, Typography, Upload, type UploadFile } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { CheckOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from "@ant-design/icons";
@@ -178,14 +178,21 @@ function JobSummary({ job, today, applied }: { job: Job; today: string; applied:
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
       <FitBadge score={job.suitability?.score ?? null} />
-      <strong>{d.title}</strong>
-      <Typography.Text type="secondary">{company}</Typography.Text>
-      <div style={{ marginLeft: "auto", paddingLeft: 16, whiteSpace: "nowrap" }}>
+      {/* Title and company/location stay on one line; overflow ends in "…" and hover shows the full text. */}
+      <Tooltip title={d.title}>
+        <strong style={CLIP}>{d.title}</strong>
+      </Tooltip>
+      <Tooltip title={company}>
+        <Typography.Text type="secondary" style={CLIP}>{company}</Typography.Text>
+      </Tooltip>
+      <div style={{ marginLeft: "auto", paddingLeft: 16, whiteSpace: "nowrap", flexShrink: 0 }}>
         {applied && job.applied_at ? <AppliedAt at={job.applied_at} today={today} /> : <Deadline data={d} today={today} past={past} />}
       </div>
     </div>
   );
 }
+
+const CLIP: CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 
 // Applied time as relative date; hover shows the local absolute time. SQLite stores UTC "YYYY-MM-DD HH:MM:SS".
 function AppliedAt({ at, today }: { at: string; today: string }) {
