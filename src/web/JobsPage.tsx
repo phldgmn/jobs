@@ -423,7 +423,7 @@ function JobBody({
     },
     {
       key: "salary",
-      label: "Salary (as stated)",
+      label: "Salary",
       children: editing ? (
         <Form.Item name="salary" noStyle>
           <Input />
@@ -456,7 +456,7 @@ function JobBody({
     },
     {
       key: "salary_currency",
-      label: "Currency (ISO 4217)",
+      label: "Currency",
       children: editing ? (
         <Form.Item name="salary_currency" noStyle>
           <Input />
@@ -490,7 +490,7 @@ function JobBody({
     { key: "language", label: "Language", children: language },
     {
       key: "required_spoken",
-      label: "Required spoken",
+      label: "Spoken",
       children: editing ? (
         <Form.Item name="required_spoken_languages" noStyle>
           <Select mode="tags" placeholder="ISO 639-1 codes, e.g. de" style={{ width: "100%" }} />
@@ -501,7 +501,7 @@ function JobBody({
     },
     {
       key: "required_written",
-      label: "Required written",
+      label: "Written",
       children: editing ? (
         <Form.Item name="required_written_languages" noStyle>
           <Select mode="tags" placeholder="ISO 639-1 codes, e.g. en" style={{ width: "100%" }} />
