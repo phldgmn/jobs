@@ -8,10 +8,17 @@ import { TasksPage } from "./TasksPage";
 import { ModelSelect } from "./ModelSelect";
 import { ReasoningSelect } from "./ReasoningSelect";
 
-const tabs = ["jobs", "add", "profile", "chat", "tasks"] as const;
+const tabs = ["jobs", "applied", "add", "profile", "chat", "tasks"] as const;
 type Tab = (typeof tabs)[number];
 
-const labels: Record<Tab, string> = { jobs: "Jobs", add: "Add jobs", profile: "Profile", chat: "Chat", tasks: "AI tasks" };
+const labels: Record<Tab, string> = {
+  jobs: "Jobs",
+  applied: "Applied",
+  add: "Add jobs",
+  profile: "Profile",
+  chat: "Chat",
+  tasks: "AI tasks",
+};
 
 function currentTab(): Tab {
   const h = location.hash.slice(1);
@@ -45,6 +52,7 @@ export function App() {
           </Layout.Header>
           <Layout.Content style={{ padding: 24, maxWidth: 1200, width: "100%", margin: "0 auto" }}>
             {tab === "jobs" && <JobsPage />}
+            {tab === "applied" && <JobsPage applied />}
             {tab === "add" && <AddJobsPage />}
             {tab === "profile" && <ProfilePage />}
             {tab === "chat" && <ChatPage />}

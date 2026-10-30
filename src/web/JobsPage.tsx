@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Descriptions, Form, Input, InputNumber, List, Select, Slider, Space, Switch, Tag, Tooltip, Typography, Upload, type UploadFile } from "antd";
+import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Descriptions, Dropdown, Form, Input, InputNumber, List, Select, Slider, Space, Switch, Tooltip, Typography, Upload, type UploadFile } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { CheckOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from "@ant-design/icons";
+import { CheckOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from "@ant-design/icons";
 import { errMessage, isContentKey, req, send } from "./api";
 import { applyFilters, FIT_PARTIAL, FIT_STRONG, type Filters } from "./filter";
 import { loadFilters, saveFilters } from "./filterStorage";
@@ -24,12 +24,6 @@ const visibilityOptions: { value: Filters["visibility"]; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
-const appliedOptions: { value: Filters["applied"]; label: string }[] = [
-  { value: "hide", label: "Not applied" },
-  { value: "only", label: "Applied" },
-  { value: "all", label: "All" },
-];
-
 const sortOptions: { value: Filters["sort"]; label: string }[] = [
   { value: "deadline_asc", label: "Deadline ↑" },
   { value: "deadline_desc", label: "Deadline ↓" },
@@ -39,8 +33,10 @@ const sortOptions: { value: Filters["sort"]; label: string }[] = [
   { value: "fit_asc", label: "Fit ↑" },
 ];
 
-export function JobsPage() {
-  const { jobs, error, setError, reload } = useJobs();
+// `applied` selects the scope: the general list shows only not-applied jobs, the Applied page only applied ones.
+export function JobsPage({ applied = false }: { applied?: boolean }) {
+  const { jobs: all, error, setError, reload } = useJobs();
+  const jobs = all.filter(j => Boolean(j.applied_at) === applied);
   const [filters, setFilters] = useState<Filters>(loadFilters);
 
   // Persist on every change so the last-used filters and sort apply on the next visit.
@@ -50,9 +46,12 @@ export function JobsPage() {
 
   const update = (patch: Partial<Filters>) => setFilters(f => ({ ...f, ...patch }));
 
+  // Applied page offers only search and sort, so the other filters must not hide applied jobs.
+  const effective: Filters = applied ? { ...filters, remote: "any", visibility: "all", minFit: 0 } : filters;
+
   const parsed = jobs.filter(j => j.data !== null);
   const today = new Date().toLocaleDateString("en-CA");
-  const visible = applyFilters(jobs, filters, today);
+  const visible = applyFilters(jobs, effective, today);
 
   // Batch actions apply to the currently filtered list, not all jobs.
   const batch = (action: "reparse" | "evaluate") =>
@@ -65,15 +64,50 @@ export function JobsPage() {
       {error && <Alert type="error" title={error} showIcon closable onClose={() => setError(null)} />}
 
       <Card
-        title="Jobs"
+        title={
+          <Space size="middle">
+            {applied ? "Applied" : "Jobs"}
+            <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+              {visible.length} of {parsed.length} jobs
+            </Typography.Text>
+          </Space>
+        }
         extra={
           <Space>
-            <Button onClick={() => batch("reparse")} disabled={visible.length === 0}>
-              Re-parse {visible.length}
-            </Button>
-            <Button onClick={() => batch("evaluate")} disabled={visible.length === 0}>
-              Re-evaluate {visible.length}
-            </Button>
+            <Input.Search
+              allowClear
+              placeholder="Search"
+              value={filters.q}
+              onChange={e => update({ q: e.target.value })}
+              style={{ width: 200 }}
+            />
+            {!applied && (
+              <>
+                <Select
+                  aria-label="Remote"
+                  value={filters.remote}
+                  onChange={v => update({ remote: v })}
+                  options={remoteOptions}
+                  style={{ width: 150 }}
+                />
+                <Select
+                  aria-label="Visibility"
+                  value={filters.visibility}
+                  onChange={v => update({ visibility: v })}
+                  options={visibilityOptions}
+                  style={{ width: 150 }}
+                />
+                <Slider
+                  aria-label="Minimum fit"
+                  min={0}
+                  max={100}
+                  value={filters.minFit}
+                  onChange={v => update({ minFit: v })}
+                  tooltip={{ formatter: v => (v === 0 ? "Any" : `≥ ${v}`) }}
+                  style={{ width: 120 }}
+                />
+              </>
+            )}
             <Select
               aria-label="Sort"
               value={filters.sort}
@@ -81,59 +115,23 @@ export function JobsPage() {
               options={sortOptions}
               style={{ width: 180 }}
             />
+            {!applied && (
+              <Dropdown
+                trigger={["click"]}
+                menu={{
+                  items: [
+                    { key: "reparse", label: `Re-parse ${visible.length}`, disabled: visible.length === 0 },
+                    { key: "evaluate", label: `Re-evaluate ${visible.length}`, disabled: visible.length === 0 },
+                  ],
+                  onClick: ({ key }) => batch(key as "reparse" | "evaluate"),
+                }}
+              >
+                <Button type="text" icon={<EllipsisOutlined />} aria-label="Actions" />
+              </Dropdown>
+            )}
           </Space>
         }
       >
-        <Space wrap style={{ marginBottom: 16, width: "100%" }}>
-          <Input.Search
-            allowClear
-            placeholder="Search"
-            value={filters.q}
-            onChange={e => update({ q: e.target.value })}
-            style={{ width: 240 }}
-          />
-          <Select
-            aria-label="Remote"
-            value={filters.remote}
-            onChange={v => update({ remote: v })}
-            options={remoteOptions}
-            style={{ width: 160 }}
-          />
-          <Select
-            aria-label="Visibility"
-            value={filters.visibility}
-            onChange={v => update({ visibility: v })}
-            options={visibilityOptions}
-            style={{ width: 160 }}
-          />
-          <Select
-            aria-label="Applied"
-            value={filters.applied}
-            onChange={v => update({ applied: v })}
-            options={appliedOptions}
-            style={{ width: 160 }}
-          />
-          <Space style={{ width: 260 }}>
-            <Typography.Text type="secondary" style={{ whiteSpace: "nowrap" }}>
-              Min fit
-            </Typography.Text>
-            <Slider
-              aria-label="Minimum fit"
-              min={0}
-              max={100}
-              value={filters.minFit}
-              onChange={v => update({ minFit: v })}
-              tooltip={{ formatter: v => (v === 0 ? "Any" : `≥ ${v}`) }}
-              style={{ width: 160, margin: "0 8px" }}
-            />
-            <Typography.Text style={{ minWidth: 28, textAlign: "right" }}>
-              {filters.minFit === 0 ? "Any" : filters.minFit}
-            </Typography.Text>
-          </Space>
-        </Space>
-        <Typography.Paragraph type="secondary">
-          {visible.length} of {parsed.length} jobs
-        </Typography.Paragraph>
         <Collapse
           items={visible.map(j => ({
             key: String(j.id),
@@ -170,7 +168,6 @@ function JobSummary({ job, today }: { job: Job; today: string }) {
       <FitBadge score={job.suitability?.score ?? null} />
       <strong>{d.title}</strong>
       <Typography.Text type="secondary">{company}</Typography.Text>
-      {job.applied_at && <Tag color="blue">Applied</Tag>}
       <div style={{ marginLeft: "auto", paddingLeft: 16, whiteSpace: "nowrap" }}>
         <Deadline data={d} today={today} past={past} />
       </div>
