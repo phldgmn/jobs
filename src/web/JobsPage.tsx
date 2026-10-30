@@ -434,7 +434,7 @@ function JobBody({
     },
     {
       key: "salary_min",
-      label: "Salary min",
+      label: "Min",
       children: editing ? (
         <Form.Item name="salary_min" noStyle>
           <InputNumber style={{ width: "100%" }} />
@@ -445,7 +445,7 @@ function JobBody({
     },
     {
       key: "salary_max",
-      label: "Salary max",
+      label: "Max",
       children: editing ? (
         <Form.Item name="salary_max" noStyle>
           <InputNumber style={{ width: "100%" }} />
