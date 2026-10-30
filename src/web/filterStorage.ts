@@ -10,7 +10,7 @@ const Stored = z.object({
   remote: z.enum(["any", "full", "mostly", "partly", "none", "unknown"]),
   visibility: z.enum(["applicable", "expired", "all"]),
   minFit: z.number().int().min(0).max(100).default(0),
-  sort: z.enum(["deadline_asc", "deadline_desc", "added_desc", "company_asc", "fit_desc", "fit_asc"]),
+  sort: z.enum(["deadline_asc", "deadline_desc", "added_desc", "company_asc", "fit_desc", "fit_asc", "applied_asc", "applied_desc"]),
 });
 
 export function loadFilters(): Filters {

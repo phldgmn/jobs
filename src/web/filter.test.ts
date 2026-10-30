@@ -60,6 +60,24 @@ describe("applyFilters sorting", () => {
   });
 });
 
+describe("applyFilters applied-at sorting", () => {
+  const applied = [
+    { ...job(10, { title: "Early", company: "E" }), applied_at: "2026-09-01 08:00:00" },
+    { ...job(11, { title: "Late", company: "L" }), applied_at: "2026-10-20 17:30:00" },
+    { ...job(12, { title: "Unapplied", company: "U" }), applied_at: null },
+  ];
+  const order = (sort: Filters["sort"]) =>
+    applyFilters(applied, { ...defaultFilters, sort, visibility: "all" }, TODAY).map(j => j.id);
+
+  test("applied_desc puts most recently applied first, unapplied last", () => {
+    expect(order("applied_desc")).toEqual([11, 10, 12]);
+  });
+
+  test("applied_asc puts earliest applied first, unapplied last", () => {
+    expect(order("applied_asc")).toEqual([10, 11, 12]);
+  });
+});
+
 describe("applyFilters visibility", () => {
   const withExpired = [...jobs, job(5, { title: "Gone", company: "Eps", deadline: null, expired: true })];
   const ids = (f: Partial<Filters>) =>

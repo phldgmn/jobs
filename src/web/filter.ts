@@ -12,7 +12,7 @@ export type Filters = {
   visibility: "applicable" | "expired" | "all";
   // Minimum fit score. 0 = no filter; any positive value also hides unscored jobs.
   minFit: number;
-  sort: "deadline_asc" | "deadline_desc" | "added_desc" | "company_asc" | "fit_desc" | "fit_asc";
+  sort: "deadline_asc" | "deadline_desc" | "added_desc" | "company_asc" | "fit_desc" | "fit_asc" | "applied_asc" | "applied_desc";
 };
 
 export const defaultFilters: Filters = {
@@ -42,7 +42,7 @@ function compareFit(a: number | null, b: number | null, dir: 1 | -1): number {
 }
 
 type Cmp = (a: Parsed, b: Parsed) => number;
-type Family = "deadline" | "fit" | "added" | "company";
+type Family = "deadline" | "fit" | "added" | "company" | "applied";
 
 // Deadline: lowest time to deadline first; nulls last.
 const deadlineCmp = (dir: 1 | -1): Cmp => (a, b) => compareNullable(a.data.deadline, b.data.deadline, dir);
@@ -50,6 +50,8 @@ const deadlineCmp = (dir: 1 | -1): Cmp => (a, b) => compareNullable(a.data.deadl
 const fitCmp = (dir: 1 | -1): Cmp => (a, b) => compareFit(a.suitability?.score ?? null, b.suitability?.score ?? null, dir);
 // Added: newest (highest id) first.
 const byAdded: Cmp = (a, b) => b.id - a.id;
+// Applied at: ISO-like datetime strings sort lexically; unapplied last.
+const appliedCmp = (dir: 1 | -1): Cmp => (a, b) => compareNullable(a.applied_at, b.applied_at, dir);
 
 const primaryFor: Record<Filters["sort"], { family: Family; cmp: Cmp }> = {
   deadline_asc: { family: "deadline", cmp: deadlineCmp(1) },
@@ -58,6 +60,8 @@ const primaryFor: Record<Filters["sort"], { family: Family; cmp: Cmp }> = {
   company_asc: { family: "company", cmp: (a, b) => compareNullable(a.data.company, b.data.company, 1) },
   fit_desc: { family: "fit", cmp: fitCmp(-1) },
   fit_asc: { family: "fit", cmp: fitCmp(1) },
+  applied_desc: { family: "applied", cmp: appliedCmp(-1) },
+  applied_asc: { family: "applied", cmp: appliedCmp(1) },
 };
 
 // Fixed secondary order after the primary key: deadline, fit, added.

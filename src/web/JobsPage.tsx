@@ -24,10 +24,18 @@ const visibilityOptions: { value: Filters["visibility"]; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
-const sortOptions: { value: Filters["sort"]; label: string }[] = [
+const jobsSortOptions: { value: Filters["sort"]; label: string }[] = [
   { value: "deadline_asc", label: "Deadline ↑" },
   { value: "deadline_desc", label: "Deadline ↓" },
   { value: "added_desc", label: "Newest added" },
+  { value: "company_asc", label: "Company A–Z" },
+  { value: "fit_desc", label: "Fit ↓" },
+  { value: "fit_asc", label: "Fit ↑" },
+];
+
+const appliedSortOptions: { value: Filters["sort"]; label: string }[] = [
+  { value: "applied_desc", label: "Applied at ↓" },
+  { value: "applied_asc", label: "Applied at ↑" },
   { value: "company_asc", label: "Company A–Z" },
   { value: "fit_desc", label: "Fit ↓" },
   { value: "fit_asc", label: "Fit ↑" },
@@ -39,6 +47,10 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
   const jobs = all.filter(j => Boolean(j.applied_at) === applied);
   const [filters, setFilters] = useState<Filters>(loadFilters);
 
+  // Sort is shared storage: a value from the other page's list falls back to that page's first option.
+  const sortOptions = applied ? appliedSortOptions : jobsSortOptions;
+  const sort = sortOptions.some(o => o.value === filters.sort) ? filters.sort : sortOptions[0].value;
+
   // Persist on every change so the last-used filters and sort apply on the next visit.
   useEffect(() => {
     saveFilters(filters);
@@ -47,7 +59,7 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
   const update = (patch: Partial<Filters>) => setFilters(f => ({ ...f, ...patch }));
 
   // Applied page offers only search and sort, so the other filters must not hide applied jobs.
-  const effective: Filters = applied ? { ...filters, remote: "any", visibility: "all", minFit: 0 } : filters;
+  const effective: Filters = applied ? { ...filters, sort, remote: "any", visibility: "all", minFit: 0 } : { ...filters, sort };
 
   const parsed = jobs.filter(j => j.data !== null);
   const today = new Date().toLocaleDateString("en-CA");
@@ -110,7 +122,7 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
             )}
             <Select
               aria-label="Sort"
-              value={filters.sort}
+              value={sort}
               onChange={v => update({ sort: v })}
               options={sortOptions}
               style={{ width: 180 }}
