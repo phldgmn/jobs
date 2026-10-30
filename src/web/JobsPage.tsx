@@ -180,10 +180,10 @@ function JobSummary({ job, today, applied }: { job: Job; today: string; applied:
       <FitBadge score={job.suitability?.score ?? null} />
       {/* Title and company/location stay on one line; overflow ends in "…" and hover shows the full text. */}
       <Tooltip title={d.title}>
-        <strong style={CLIP}>{d.title}</strong>
+        <strong style={{ ...CLIP, flex: "0 1 auto", maxWidth: "55%" }}>{d.title}</strong>
       </Tooltip>
       <Tooltip title={company}>
-        <Typography.Text type="secondary" style={CLIP}>{company}</Typography.Text>
+        <Typography.Text type="secondary" style={{ ...CLIP, flex: "1 1 0" }}>{company}</Typography.Text>
       </Tooltip>
       <div style={{ marginLeft: "auto", paddingLeft: 16, whiteSpace: "nowrap", flexShrink: 0 }}>
         {applied && job.applied_at ? <AppliedAt at={job.applied_at} today={today} /> : <Deadline data={d} today={today} past={past} />}
