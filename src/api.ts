@@ -24,6 +24,8 @@ import {
   setModelOverride,
   setReasoningOverride,
   setApplied,
+  setRejected,
+  isApplied,
 } from "./db";
 import { chatStream, currentModel, currentReasoning, ENV_MODEL, ENV_REASONING, extractJson, listModels } from "./llm";
 import { activeTasks, enqueue, enqueueEvaluate, retryFailed } from "./jobs";
@@ -261,6 +263,16 @@ api.post("/api/jobs/:id/applied", async c => {
   const body = z.object({ applied: z.boolean() }).safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "Body must be { applied: boolean }" }, 400);
   setApplied(id, body.data.applied);
+  return c.json({ ok: true });
+});
+
+api.post("/api/jobs/:id/rejected", async c => {
+  const id = Number(c.req.param("id"));
+  if (!getJobRow(id)) return c.json(notFound(), 404);
+  const body = z.object({ rejected: z.boolean() }).safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "Body must be { rejected: boolean }" }, 400);
+  if (body.data.rejected && !isApplied(id)) return c.json({ error: "Only applied jobs can be rejected" }, 400);
+  setRejected(id, body.data.rejected);
   return c.json({ ok: true });
 });
 

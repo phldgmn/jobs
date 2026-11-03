@@ -30,6 +30,8 @@ if (!cols.includes("suitability")) db.run("ALTER TABLE jobs ADD COLUMN suitabili
 if (!cols.includes("suitability_error")) db.run("ALTER TABLE jobs ADD COLUMN suitability_error TEXT");
 // Set when the user marks the job applied; hidden from the default list view.
 if (!cols.includes("applied_at")) db.run("ALTER TABLE jobs ADD COLUMN applied_at TEXT");
+// Set when the user marks an applied job rejected; the Applied page splits ongoing from rejected on this.
+if (!cols.includes("rejected_at")) db.run("ALTER TABLE jobs ADD COLUMN rejected_at TEXT");
 db.run(`CREATE TABLE IF NOT EXISTS profile(
   id INTEGER PRIMARY KEY CHECK (id = 1),
   data TEXT NOT NULL,
@@ -78,10 +80,11 @@ type JobRow = {
   suitability: string | null;
   suitability_error: string | null;
   applied_at: string | null;
+  rejected_at: string | null;
   created_at: string;
 };
 
-const JOB_COLS = "id, url, status, error, data, suitability, suitability_error, applied_at, created_at";
+const JOB_COLS = "id, url, status, error, data, suitability, suitability_error, applied_at, rejected_at, created_at";
 
 type MaterialRow = Material & { job_id: number };
 const MATERIAL_COLS = "id, job_id, name, mime, size, created_at";
@@ -115,6 +118,7 @@ function toJob(r: JobRow, materials: Material[]): Job {
     suitability_error: r.suitability_error,
     evaluating: evaluating.has(r.id),
     applied_at: r.applied_at,
+    rejected_at: r.rejected_at,
     materials,
     created_at: r.created_at,
   };
@@ -179,9 +183,21 @@ export function setSuitabilityError(id: number, msg: string) {
 // Keeps the original applied date when re-marking an already applied job.
 export function setApplied(id: number, applied: boolean) {
   db.run(
-    "UPDATE jobs SET applied_at = CASE WHEN ? THEN COALESCE(applied_at, datetime('now')) ELSE NULL END, updated_at = datetime('now') WHERE id = ?",
-    [applied ? 1 : 0, id],
+    "UPDATE jobs SET applied_at = CASE WHEN ? THEN COALESCE(applied_at, datetime('now')) ELSE NULL END, rejected_at = CASE WHEN ? THEN rejected_at ELSE NULL END, updated_at = datetime('now') WHERE id = ?",
+    [applied ? 1 : 0, applied ? 1 : 0, id],
   );
+}
+
+// Only meaningful for applied jobs; un-applying clears it (see setApplied).
+export function setRejected(id: number, rejected: boolean) {
+  db.run(
+    "UPDATE jobs SET rejected_at = CASE WHEN ? THEN COALESCE(rejected_at, datetime('now')) ELSE NULL END, updated_at = datetime('now') WHERE id = ?",
+    [rejected ? 1 : 0, id],
+  );
+}
+
+export function isApplied(id: number): boolean {
+  return db.query<{ applied_at: string | null }, [number]>("SELECT applied_at FROM jobs WHERE id = ?").get(id)?.applied_at != null;
 }
 
 export function addMaterial(jobId: number, name: string, mime: string, content: Uint8Array) {

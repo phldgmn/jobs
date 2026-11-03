@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Descriptions, Dropdown, Form, Input, InputNumber, List, Select, Slider, Space, Switch, Tooltip, Typography, Upload, type UploadFile } from "antd";
+import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Descriptions, Dropdown, Form, Input, InputNumber, List, Segmented, Select, Slider, Space, Switch, Tooltip, Typography, Upload, type UploadFile } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { CheckOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from "@ant-design/icons";
 import { errMessage, isContentKey, req, send } from "./api";
 import { applyFilters, FIT_PARTIAL, FIT_STRONG, type Filters } from "./filter";
 import { loadFilters, saveFilters } from "./filterStorage";
@@ -44,7 +44,11 @@ const appliedSortOptions: { value: Filters["sort"]; label: string }[] = [
 // `applied` selects the scope: the general list shows only not-applied jobs, the Applied page only applied ones.
 export function JobsPage({ applied = false }: { applied?: boolean }) {
   const { jobs: all, error, setError, reload } = useJobs();
-  const jobs = all.filter(j => Boolean(j.applied_at) === applied);
+  // Applied page shows ongoing applications by default; the toggle switches to rejected ones.
+  const [appliedView, setAppliedView] = useState<"ongoing" | "rejected">("ongoing");
+  const jobs = applied
+    ? all.filter(j => j.applied_at !== null && (j.rejected_at !== null) === (appliedView === "rejected"))
+    : all.filter(j => j.applied_at === null);
   const [filters, setFilters] = useState<Filters>(loadFilters);
 
   // Sort is shared storage: a value from the other page's list falls back to that page's first option.
@@ -93,6 +97,16 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
               onChange={e => update({ q: e.target.value })}
               style={{ width: 200 }}
             />
+            {applied && (
+              <Segmented
+                value={appliedView}
+                onChange={v => setAppliedView(v as "ongoing" | "rejected")}
+                options={[
+                  { value: "ongoing", label: "Ongoing" },
+                  { value: "rejected", label: "Rejected" },
+                ]}
+              />
+            )}
             {!applied && (
               <>
                 <Select
@@ -336,6 +350,11 @@ function JobBody({
 
   const toggleApplied = () =>
     req("POST", `/api/jobs/${job.id}/applied`, { applied: job.applied_at === null })
+      .then(onChange)
+      .catch(e => setError(errMessage(e)));
+
+  const toggleRejected = () =>
+    req("POST", `/api/jobs/${job.id}/rejected`, { rejected: job.rejected_at === null })
       .then(onChange)
       .catch(e => setError(errMessage(e)));
 
@@ -620,26 +639,46 @@ function JobBody({
             <Button onClick={() => setEditing(false)}>Cancel</Button>
           </Space>
         ) : (
-          <Space>
-            <Button icon={<CheckOutlined />} onClick={toggleApplied}>
-              {job.applied_at ? "Mark not applied" : "Mark applied"}
-            </Button>
-            <Button icon={<EditOutlined />} onClick={startEdit}>
-              Edit
-            </Button>
-            <Button icon={<ReloadOutlined />} onClick={reparse}>
-              Reparse
-            </Button>
-            <Button icon={<ReloadOutlined />} loading={job.evaluating} onClick={reevaluate}>
-              Re-evaluate
-            </Button>
-            <Button icon={<StopOutlined />} onClick={toggleExpired}>
-              {d.expired ? "Mark as open" : "Mark as expired"}
-            </Button>
-            <Button danger icon={<DeleteOutlined />} onClick={remove}>
-              Delete
-            </Button>
-          </Space>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {/* Left: status toggles. Rejected only exists once applied. */}
+            <Space wrap>
+              <Button icon={<CheckOutlined />} onClick={toggleApplied}>
+                {job.applied_at ? "Mark not applied" : "Mark applied"}
+              </Button>
+              {job.applied_at && (
+                <Button icon={<CloseOutlined />} onClick={toggleRejected}>
+                  {job.rejected_at ? "Mark not rejected" : "Mark rejected"}
+                </Button>
+              )}
+              <Button icon={<StopOutlined />} onClick={toggleExpired}>
+                {d.expired ? "Mark as open" : "Mark as expired"}
+              </Button>
+            </Space>
+            {/* Right: edit plus an icon dropdown for the rest. */}
+            <Space style={{ marginLeft: "auto" }}>
+              <Button icon={<EditOutlined />} onClick={startEdit}>
+                Edit
+              </Button>
+              <Dropdown
+                trigger={["click"]}
+                menu={{
+                  items: [
+                    { key: "reparse", label: "Reparse", icon: <ReloadOutlined /> },
+                    { key: "reevaluate", label: "Re-evaluate", icon: <ReloadOutlined />, disabled: job.evaluating },
+                    { type: "divider" },
+                    { key: "delete", label: "Delete", icon: <DeleteOutlined />, danger: true },
+                  ],
+                  onClick: ({ key }) => {
+                    if (key === "reparse") reparse();
+                    else if (key === "reevaluate") reevaluate();
+                    else remove();
+                  },
+                }}
+              >
+                <Button icon={<EllipsisOutlined />} aria-label="More actions" />
+              </Dropdown>
+            </Space>
+          </div>
         )}
 
         {!editing && <MaterialsSection job={job} onChange={onChange} setError={setError} />}

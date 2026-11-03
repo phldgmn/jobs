@@ -52,6 +52,7 @@ export type Job = {
   suitability_error: string | null;
   evaluating: boolean;
   applied_at: string | null; // set when marked applied; null = not applied
+  rejected_at: string | null; // set when an applied job is marked rejected; null = ongoing
   materials: Material[];
   created_at: string;
 };

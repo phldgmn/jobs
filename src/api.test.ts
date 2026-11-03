@@ -58,6 +58,20 @@ describe("applied and materials", () => {
     expect((await listJob(id)).applied_at).toBeNull();
   });
 
+  test("rejected toggle sets rejected_at only on applied jobs; un-applying clears it", async () => {
+    const id = await addJob();
+    expect((await postJson(`/api/jobs/${id}/rejected`, { rejected: true })).status).toBe(400);
+    expect((await listJob(id)).rejected_at).toBeNull();
+    await postJson(`/api/jobs/${id}/applied`, { applied: true });
+    await postJson(`/api/jobs/${id}/rejected`, { rejected: true });
+    expect((await listJob(id)).rejected_at).not.toBeNull();
+    await postJson(`/api/jobs/${id}/rejected`, { rejected: false });
+    expect((await listJob(id)).rejected_at).toBeNull();
+    await postJson(`/api/jobs/${id}/rejected`, { rejected: true });
+    await postJson(`/api/jobs/${id}/applied`, { applied: false });
+    expect((await listJob(id)).rejected_at).toBeNull();
+  });
+
   test("uploads several files and serves each with a sandbox CSP", async () => {
     const id = await addJob();
     const form = new FormData();

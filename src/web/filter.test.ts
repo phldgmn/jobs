@@ -34,6 +34,7 @@ const job = (id: number, d: Partial<JobData>): Job => ({
   suitability_error: null,
   evaluating: false,
   applied_at: null,
+  rejected_at: null,
   materials: [],
   error: null,
   data: data(d),
