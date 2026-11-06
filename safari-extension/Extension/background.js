@@ -91,9 +91,10 @@ async function sendPage(tab) {
     // Keep only the Ashby iframe; the host page adds navigation noise. Query and hash may differ at runtime.
     const embed = new URL(embedSrc, url.href);
     const embedUrl = embed.origin + embed.pathname;
+    const seen = frames.map(f => `${f.frameId} ${f.url} (${f.text.length} chars)`).join("\n");
     frames = frames.filter(f => f.url.startsWith(embedUrl));
     if (frames.length === 0) {
-      throw new Error("The Ashby job posting iframe has no readable content.");
+      throw new Error(`Ashby iframe src: ${embedSrc}\nCaptured frames:\n${seen}`);
     }
   }
 
