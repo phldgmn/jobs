@@ -8,3 +8,9 @@ body {
   min-width: 0;
   overflow: hidden;
 }
+
+/* Materials upload fills the row so it matches the notes textarea height. */
+.materials-row .ant-upload-wrapper,
+.materials-row .ant-upload-drag {
+  height: 100%;
+}

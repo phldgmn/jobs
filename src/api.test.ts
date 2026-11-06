@@ -72,18 +72,14 @@ describe("applied and materials", () => {
     expect((await listJob(id)).rejected_at).toBeNull();
   });
 
-  test("notes save only on applied jobs, validated and capped", async () => {
+  test("notes save on any job, validated and capped", async () => {
     const id = await addJob();
     const put = (notes: unknown) =>
       api.fetch(new Request(`http://x/api/jobs/${id}/notes`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes }) }));
-    expect((await put("early")).status).toBe(400);
-    await postJson(`/api/jobs/${id}/applied`, { applied: true });
     expect((await put("Call Ana Tue")).status).toBe(200);
     expect((await listJob(id)).applied_notes).toBe("Call Ana Tue");
     expect((await put(42)).status).toBe(400);
     expect((await put("x".repeat(20001))).status).toBe(400);
-    await postJson(`/api/jobs/${id}/applied`, { applied: false });
-    expect((await put("late")).status).toBe(400);
   });
 
   test("uploads several files and serves each with a sandbox CSP", async () => {

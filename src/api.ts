@@ -283,7 +283,6 @@ api.put("/api/jobs/:id/notes", async c => {
   if (!getJobRow(id)) return c.json(notFound(), 404);
   const body = z.object({ notes: z.string().max(20000) }).safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "Body must be { notes: string } (max 20000 chars)" }, 400);
-  if (!isApplied(id)) return c.json({ error: "Only applied jobs can have notes" }, 400);
   setAppliedNotes(id, body.data.notes);
   return c.json({ ok: true });
 });
