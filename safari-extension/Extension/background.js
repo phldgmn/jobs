@@ -1,4 +1,7 @@
 const DEFAULT_ENDPOINT = "http://127.0.0.1:48173";
+// Estimated by eye from icon-48.png (teal folder/briefcase, orange arc arrow).
+const TEAL = "#1f7a80";
+const ORANGE = "#ee7a2a";
 
 // Runs in every frame: rendered text plus JSON-LD, combined in sendPage.
 function capturePage() {
@@ -7,6 +10,14 @@ function capturePage() {
     .join("\n");
   const text = (document.body?.innerText ?? "").replace(/\s+/g, " ").trim();
   return { jsonLd, text, url: location.href };
+}
+
+// Toolbar badge is the non-blocking progress hint. A failed badge update must never break capture.
+function setBadge(tabId, text, color) {
+  return Promise.all([
+    browser.action.setBadgeBackgroundColor({ tabId, color }),
+    browser.action.setBadgeText({ tabId, text }),
+  ]).catch(() => {});
 }
 
 async function alertTab(tabId, message) {
@@ -112,9 +123,14 @@ async function sendPage(tab) {
 }
 
 browser.action.onClicked.addListener(async tab => {
+  setBadge(tab.id, "...", TEAL); // capture started
   try {
     await sendPage(tab);
+    setBadge(tab.id, "✓", TEAL);
+    setTimeout(() => setBadge(tab.id, "", TEAL), 1500);
   } catch (err) {
+    setBadge(tab.id, "!", ORANGE);
+    setTimeout(() => setBadge(tab.id, "", ORANGE), 3000);
     const message = err instanceof Error ? err.message : String(err);
     await alertTab(tab.id, `Jobs Capture could not add this page.\n\n${message}`).catch(() =>
       console.error("Jobs Capture:", message),
