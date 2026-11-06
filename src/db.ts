@@ -32,6 +32,8 @@ if (!cols.includes("suitability_error")) db.run("ALTER TABLE jobs ADD COLUMN sui
 if (!cols.includes("applied_at")) db.run("ALTER TABLE jobs ADD COLUMN applied_at TEXT");
 // Set when the user marks an applied job rejected; the Applied page splits ongoing from rejected on this.
 if (!cols.includes("rejected_at")) db.run("ALTER TABLE jobs ADD COLUMN rejected_at TEXT");
+// Free text kept with an application (e.g. contact, next steps); shown beside the materials.
+if (!cols.includes("applied_notes")) db.run("ALTER TABLE jobs ADD COLUMN applied_notes TEXT");
 db.run(`CREATE TABLE IF NOT EXISTS profile(
   id INTEGER PRIMARY KEY CHECK (id = 1),
   data TEXT NOT NULL,
@@ -81,10 +83,11 @@ type JobRow = {
   suitability_error: string | null;
   applied_at: string | null;
   rejected_at: string | null;
+  applied_notes: string | null;
   created_at: string;
 };
 
-const JOB_COLS = "id, url, status, error, data, suitability, suitability_error, applied_at, rejected_at, created_at";
+const JOB_COLS = "id, url, status, error, data, suitability, suitability_error, applied_at, rejected_at, applied_notes, created_at";
 
 type MaterialRow = Material & { job_id: number };
 const MATERIAL_COLS = "id, job_id, name, mime, size, created_at";
@@ -119,6 +122,7 @@ function toJob(r: JobRow, materials: Material[]): Job {
     evaluating: evaluating.has(r.id),
     applied_at: r.applied_at,
     rejected_at: r.rejected_at,
+    applied_notes: r.applied_notes,
     materials,
     created_at: r.created_at,
   };
@@ -400,3 +404,7 @@ export function getReasoningOverride(): string | null {
 export function setReasoningOverride(effort: string | null) {
   setSetting("reasoning", effort);
 }
+export function setAppliedNotes(id: number, notes: string) {
+  db.run("UPDATE jobs SET applied_notes = ?, updated_at = datetime('now') WHERE id = ?", [notes, id]);
+}
+

@@ -49,16 +49,17 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
   const jobs = applied
     ? all.filter(j => j.applied_at !== null && (j.rejected_at !== null) === (appliedView === "rejected"))
     : all.filter(j => j.applied_at === null);
-  const [filters, setFilters] = useState<Filters>(loadFilters);
+  const scope = applied ? "applied" : "jobs";
+  const [filters, setFilters] = useState<Filters>(() => loadFilters(scope));
 
-  // Sort is shared storage: a value from the other page's list falls back to that page's first option.
+  // Stored sort may be stale (e.g. saved before a sort option was removed); fall back to this page's first option.
   const sortOptions = applied ? appliedSortOptions : jobsSortOptions;
   const sort = sortOptions.some(o => o.value === filters.sort) ? filters.sort : sortOptions[0].value;
 
-  // Persist on every change so the last-used filters and sort apply on the next visit.
+  // Persist on every change so each page's last-used filters and sort apply on its next visit.
   useEffect(() => {
-    saveFilters(filters);
-  }, [filters]);
+    saveFilters(scope, filters);
+  }, [scope, filters]);
 
   const update = (patch: Partial<Filters>) => setFilters(f => ({ ...f, ...patch }));
 
@@ -230,6 +231,31 @@ function Deadline({ data: d, today, past }: { data: JobData; today: string; past
   );
 }
 
+// Free text saved with the application. Saves on blur; resyncs whenever the server value changes.
+function NotesField({ job, onChange, setError }: { job: Job; onChange: () => void; setError: (s: string | null) => void }) {
+  const [text, setText] = useState(job.applied_notes ?? "");
+  useEffect(() => setText(job.applied_notes ?? ""), [job.applied_notes]);
+
+  const save = () => {
+    if (text === (job.applied_notes ?? "")) return;
+    req("PUT", `/api/jobs/${job.id}/notes`, { notes: text })
+      .then(onChange)
+      .catch(e => setError(errMessage(e)));
+  };
+
+  return (
+    <Input.TextArea
+      aria-label="Application notes"
+      placeholder="Notes for this application (contact, next steps, ...)"
+      value={text}
+      onChange={e => setText(e.target.value)}
+      onBlur={save}
+      maxLength={20000}
+      style={{ flex: 1, resize: "none" }}
+    />
+  );
+}
+
 // Materials: upload any number of files; list with view, download and delete.
 const INLINE_MIME = /^(application\/pdf|image\/(png|jpeg|gif|webp))$/;
 // View opens inline only for types the server allows inline; download always works.
@@ -287,14 +313,22 @@ function MaterialsSection({ job, onChange, setError }: { job: Job; onChange: () 
           )}
         />
       )}
-      <Space orientation="vertical" style={{ width: "100%", marginTop: 12 }}>
-        <Upload.Dragger multiple fileList={files} beforeUpload={() => false} onChange={({ fileList }) => setFiles(fileList)}>
-          <p>Drop files here (CV, cover letter, ...), or click to choose</p>
-        </Upload.Dragger>
-        <Button icon={<UploadOutlined />} onClick={upload} loading={uploading} disabled={files.length === 0}>
-          {files.length === 0 ? "Upload" : `Upload ${files.length} file${files.length === 1 ? "" : "s"}`}
-        </Button>
-      </Space>
+      {/* Upload and notes share one row; both columns stretch to the same height. */}
+      <div style={{ display: "flex", gap: 16, marginTop: 12, alignItems: "stretch" }}>
+        <Space orientation="vertical" style={{ flex: 1, minWidth: 0 }}>
+          <Upload.Dragger multiple fileList={files} beforeUpload={() => false} onChange={({ fileList }) => setFiles(fileList)}>
+            <p>Drop files here (CV, cover letter, ...), or click to choose</p>
+          </Upload.Dragger>
+          <Button icon={<UploadOutlined />} onClick={upload} loading={uploading} disabled={files.length === 0}>
+            {files.length === 0 ? "Upload" : `Upload ${files.length} file${files.length === 1 ? "" : "s"}`}
+          </Button>
+        </Space>
+        {job.applied_at && (
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <NotesField job={job} onChange={onChange} setError={setError} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

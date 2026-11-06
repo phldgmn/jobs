@@ -25,6 +25,7 @@ import {
   setReasoningOverride,
   setApplied,
   setRejected,
+  setAppliedNotes,
   isApplied,
 } from "./db";
 import { chatStream, currentModel, currentReasoning, ENV_MODEL, ENV_REASONING, extractJson, listModels } from "./llm";
@@ -273,6 +274,17 @@ api.post("/api/jobs/:id/rejected", async c => {
   if (!body.success) return c.json({ error: "Body must be { rejected: boolean }" }, 400);
   if (body.data.rejected && !isApplied(id)) return c.json({ error: "Only applied jobs can be rejected" }, 400);
   setRejected(id, body.data.rejected);
+  return c.json({ ok: true });
+});
+
+// Free text for an application; only applied jobs carry notes. Capped so one row cannot bloat the DB.
+api.put("/api/jobs/:id/notes", async c => {
+  const id = Number(c.req.param("id"));
+  if (!getJobRow(id)) return c.json(notFound(), 404);
+  const body = z.object({ notes: z.string().max(20000) }).safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "Body must be { notes: string } (max 20000 chars)" }, 400);
+  if (!isApplied(id)) return c.json({ error: "Only applied jobs can have notes" }, 400);
+  setAppliedNotes(id, body.data.notes);
   return c.json({ ok: true });
 });
 
