@@ -1,7 +1,7 @@
-import { useEffect, useState, type CSSProperties } from "react";
-import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Descriptions, Dropdown, Form, Input, InputNumber, List, Segmented, Select, Slider, Space, Switch, Tooltip, Typography, Upload, type UploadFile } from "antd";
+import { Fragment, useEffect, useState, type CSSProperties } from "react";
+import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Dropdown, Form, Input, InputNumber, List, Segmented, Select, Slider, Space, Switch, Tooltip, Typography, Upload } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, ReloadOutlined, StopOutlined } from "@ant-design/icons";
 import { errMessage, isContentKey, req, send } from "./api";
 import { applyFilters, FIT_PARTIAL, FIT_STRONG, type Filters } from "./filter";
 import { loadFilters, saveFilters } from "./filterStorage";
@@ -260,22 +260,13 @@ function NotesField({ job, onChange, setError }: { job: Job; onChange: () => voi
 const INLINE_MIME = /^(application\/pdf|image\/(png|jpeg|gif|webp))$/;
 // View opens inline only for types the server allows inline; download always works.
 function MaterialsSection({ job, onChange, setError }: { job: Job; onChange: () => void; setError: (s: string | null) => void }) {
-  const [files, setFiles] = useState<UploadFile[]>([]);
-  const [uploading, setUploading] = useState(false);
-
-  const upload = async () => {
+  // Each selected or dropped batch uploads immediately. antd calls beforeUpload once per file, so only the first one sends the whole batch.
+  const upload = (batch: File[]) => {
     const form = new FormData();
-    for (const f of files) form.append("file", f.originFileObj as File);
-    setUploading(true);
-    try {
-      await send("POST", `/api/jobs/${job.id}/materials`, { body: form });
-      setFiles([]);
-      onChange();
-    } catch (e) {
-      setError(errMessage(e));
-    } finally {
-      setUploading(false);
-    }
+    for (const f of batch) form.append("file", f);
+    send("POST", `/api/jobs/${job.id}/materials`, { body: form })
+      .then(onChange)
+      .catch(e => setError(errMessage(e)));
   };
 
   const remove = (id: number) =>
@@ -314,20 +305,23 @@ function MaterialsSection({ job, onChange, setError }: { job: Job; onChange: () 
         />
       )}
       {/* Upload and notes share one row; both columns stretch to the same height. */}
-      <div style={{ display: "flex", gap: 16, marginTop: 12, alignItems: "stretch" }}>
-        <Space orientation="vertical" style={{ flex: 1, minWidth: 0 }}>
-          <Upload.Dragger multiple fileList={files} beforeUpload={() => false} onChange={({ fileList }) => setFiles(fileList)}>
+      <div className="materials-row" style={{ display: "flex", gap: 16, marginTop: 12, alignItems: "stretch" }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <Upload.Dragger
+            multiple
+            showUploadList={false}
+            beforeUpload={(file, batch) => {
+              if (file === batch[0]) upload(batch);
+              return false;
+            }}
+            style={{ height: "100%" }}
+          >
             <p>Drop files here (CV, cover letter, ...), or click to choose</p>
           </Upload.Dragger>
-          <Button icon={<UploadOutlined />} onClick={upload} loading={uploading} disabled={files.length === 0}>
-            {files.length === 0 ? "Upload" : `Upload ${files.length} file${files.length === 1 ? "" : "s"}`}
-          </Button>
-        </Space>
-        {job.applied_at && (
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-            <NotesField job={job} onChange={onChange} setError={setError} />
-          </div>
-        )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <NotesField job={job} onChange={onChange} setError={setError} />
+        </div>
       </div>
     </div>
   );
@@ -578,10 +572,53 @@ function JobBody({
     },
   ];
 
+  // Details grid: 3 label/value pairs per row; URL spans the full width below.
+  const grid = rows.filter(r => r.key !== "url");
+  const urlRow = rows.find(r => r.key === "url");
+  const gridRows = Array.from({ length: Math.ceil(grid.length / 3) }, (_, i) => grid.slice(i * 3, i * 3 + 3));
+  const cellBase = { padding: "8px 12px", borderBottom: "1px solid #f0f0f0", borderRight: "1px solid #f0f0f0" };
+  const labelStyle = { ...cellBase, background: "#fafafa", color: "rgba(0,0,0,0.65)", whiteSpace: "nowrap" as const };
+  const valueStyle = { ...cellBase, overflow: "hidden" };
+  const ellipsisStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const };
   return (
     <Form<EditValues> form={form} layout="vertical" disabled={saving}>
       <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
-        <Descriptions bordered size="small" column={{ xs: 1, sm: 2, lg: 3 }} items={rows} />
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", border: "1px solid #f0f0f0", fontSize: 14 }}>
+          <colgroup>
+            <col style={{ width: 100 }} />
+            <col style={{ width: "30%" }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: "30%" }} />
+          </colgroup>
+          <tbody>
+            {gridRows.map(group => (
+              <tr key={group.map(g => g.key).join("|")}>
+                {group.map(item => (
+                  <Fragment key={item.key}>
+                    <td style={labelStyle}>{item.label}</td>
+                    <td style={valueStyle}>
+                      {editing ? item.children : (
+                        <Tooltip title={item.children}>
+                          <div style={ellipsisStyle}>{item.children}</div>
+                        </Tooltip>
+                      )}
+                    </td>
+                  </Fragment>
+                ))}
+              </tr>
+            ))}
+            {urlRow && (
+              <tr>
+                <td style={labelStyle}>{urlRow.label}</td>
+                <td colSpan={5} style={{ ...cellBase, borderRight: 0, wordBreak: "break-all" }}>
+                  {urlRow.children}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
 
         <div>
           <Typography.Title level={5}>Job description</Typography.Title>
