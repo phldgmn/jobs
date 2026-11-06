@@ -30,6 +30,8 @@ safari-project:
 safari: safari-project
 	cp -R $(REPO)/safari-extension/Extension/. "$(SAFARI_PROJ)/Jobs Capture Extension/Resources/"
 	cd "$(SAFARI_PROJ)" && xcodebuild -project "Jobs Capture.xcodeproj" -scheme "Jobs Capture" -configuration Release -derivedDataPath $(SAFARI_DD) DEVELOPMENT_TEAM=$(TEAM_ID) build
+	# xcodebuild registers the build output with LaunchServices, so Safari lists it next to the installed app; only the copy in Jobs.app should register.
+	/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$(SAFARI_DD)/Build/Products/Release/Jobs Capture.app" || true
 
 app: server safari
 	rm -rf $(APP)
