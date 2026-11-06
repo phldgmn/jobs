@@ -415,6 +415,8 @@ api.post("/api/restore", async c => {
   const tmp = join(mkdtempSync(join(tmpdir(), "jobs-restore-")), "upload.db");
   try {
     await Bun.write(tmp, file);
+    // Checked after the await and before the synchronous restore, so no task can start in between.
+    if (activeTasks().length > 0) return c.json({ error: "Cannot restore while AI tasks are running; wait for them to finish" }, 409);
     restoreDatabase(tmp);
   } catch (e) {
     return c.json({ error: errText(e) }, 400);
