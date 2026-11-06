@@ -33,6 +33,10 @@ import { activeTasks, enqueue, enqueueEvaluate, retryFailed } from "./jobs";
 import { CV_SYSTEM, chatSystem, externalCvPrompt } from "./prompts";
 import { JobData, Profile } from "./schemas";
 import { htmlToText, pdfToText } from "./fetchPage";
+import { backupDatabase, restoreDatabase } from "./backup";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 
 // Routes carry the full /api prefix; server mounts this at "/api/*".
 export const api = new Hono();
@@ -390,6 +394,35 @@ api.post("/api/profile/cv", async c => {
 });
 
 api.get("/api/profile/prompt", c => c.text(externalCvPrompt()));
+
+// Full SQLite snapshot as a download. Materials are BLOBs, so the file carries everything.
+api.get("/api/backup", () => {
+  const day = new Date().toISOString().slice(0, 10);
+  return new Response(backupDatabase().slice(), {
+    headers: {
+      "Content-Type": "application/vnd.sqlite3",
+      "Content-Disposition": `attachment; filename="jobs-${day}.db"`,
+    },
+  });
+});
+
+// Replaces all data with an uploaded backup. restoreDatabase validates the file
+// (integrity check, required tables) before any row is touched.
+api.post("/api/restore", async c => {
+  const form = await c.req.parseBody().catch(() => null);
+  const file = form?.file;
+  if (!(file instanceof File)) return c.json({ error: "Body must be multipart with a 'file' field" }, 400);
+  const tmp = join(mkdtempSync(join(tmpdir(), "jobs-restore-")), "upload.db");
+  try {
+    await Bun.write(tmp, file);
+    restoreDatabase(tmp);
+  } catch (e) {
+    return c.json({ error: errText(e) }, 400);
+  } finally {
+    rmSync(dirname(tmp), { recursive: true, force: true });
+  }
+  return c.json({ ok: true });
+});
 
 api.post("/api/chat", async c => {
   const body = ChatBody.safeParse(await c.req.json().catch(() => null));

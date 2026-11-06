@@ -5,10 +5,11 @@ import { JobsPage } from "./JobsPage";
 import { ProfilePage } from "./ProfilePage";
 import { ChatPage } from "./ChatPage";
 import { TasksPage } from "./TasksPage";
+import { BackupPage } from "./BackupPage";
 import { ModelSelect } from "./ModelSelect";
 import { ReasoningSelect } from "./ReasoningSelect";
 
-const tabs = ["jobs", "applied", "add", "profile", "chat", "tasks"] as const;
+const tabs = ["jobs", "applied", "add", "profile", "chat", "tasks", "backup"] as const;
 type Tab = (typeof tabs)[number];
 
 const labels: Record<Tab, string> = {
@@ -18,6 +19,7 @@ const labels: Record<Tab, string> = {
   profile: "Profile",
   chat: "Chat",
   tasks: "AI tasks",
+  backup: "Backup",
 };
 
 function currentTab(): Tab {
@@ -57,6 +59,7 @@ export function App() {
             {tab === "profile" && <ProfilePage />}
             {tab === "chat" && <ChatPage />}
             {tab === "tasks" && <TasksPage />}
+            {tab === "backup" && <BackupPage />}
           </Layout.Content>
         </Layout>
       </AntApp>
