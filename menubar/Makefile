@@ -35,7 +35,7 @@ app: server safari
 	rm -rf $(APP)
 	mkdir -p $(BUNDLE)/MacOS $(BUNDLE)/Resources $(BUNDLE)/PlugIns
 	swiftc -O $(ROOT)/main.swift -o $(BUNDLE)/MacOS/jobs-menubar
-	sed 's|@REPO_PATH@|$(REPO)|' $(ROOT)/Info.plist.in > $(BUNDLE)/Info.plist
+	cp $(ROOT)/Info.plist.in $(BUNDLE)/Info.plist
 	cp $(SERVER_BIN) $(BUNDLE)/Resources/jobs-server
 	cp $(ROOT)/AppIcon.icns $(BUNDLE)/Resources/AppIcon.icns
 	cp -R "$(APPEX)" "$(BUNDLE)/PlugIns/"

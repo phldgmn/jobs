@@ -38,11 +38,17 @@ Optional: a minimal menu bar app that runs the server in the background and can 
 make -C menubar install   # builds server binary + Jobs.app, installs to /Applications, launches
 ```
 
-Menu: **Open Web UI** (opens http://jobs.localhost:48173/), **Start at Login** (toggle), **Quit** (stops the server).
+Menu: **Open Web UI** (opens http://jobs.localhost:48173/), **Settings…**, **Start at Login** (toggle), **Quit** (stops the server).
 
 The server binds `127.0.0.1` only, on port 48173 (`SERVER_PORT` in `menubar/Info.plist.in`). The menu uses the `jobs.localhost` name, which resolves to loopback without any configuration. Port 80 is not used because binding it requires root.
 
-The app spawns the compiled server (`bun build --compile`, embedded in the app bundle) with the repo as its working directory, so it finds `.env` and `data/`. Server output goes to `~/Library/Logs/jobs-menubar/server.log`.
+The app runs the compiled server (`bun build --compile`, embedded in the app bundle) in `~/Library/Application Support/eu.dgmn.jobsmenubar/`, which holds `jobs.db`. The API base URL, API key (stored in the Keychain) and default model are set via **Settings…**, shown on first launch. `.env` is only used by `bun run dev`. Server output goes to `~/Library/Logs/jobs-menubar/server.log`.
+
+To migrate an existing repo database once (quit the app first; the target must not exist):
+
+```sh
+mkdir -p ~/Library/Application\ Support/eu.dgmn.jobsmenubar && sqlite3 data/jobs.db "VACUUM INTO '$HOME/Library/Application Support/eu.dgmn.jobsmenubar/jobs.db'"
+```
 
 The Safari extension ("Jobs Capture", source in `safari-extension/`) is embedded in `Jobs.app` as `PlugIns/Jobs Capture Extension.appex` (bundle ID `eu.dgmn.jobsmenubar.Extension`). `make` builds it with `xcodebuild` and signs it with the Apple Development identity (team `T592P4FM4E`), because Safari only loads team-signed extensions. To enable it, open Safari > Settings > Extensions and tick "Jobs Capture". Its default server URL is `http://127.0.0.1:48173`.
 

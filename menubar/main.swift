@@ -1,13 +1,46 @@
 // Jobs menu bar app: runs the bundled server binary and offers
-// Open Web UI / Start at Login / Quit. Personal use, no distribution.
+// Open Web UI / Settings / Quit. Personal use, no distribution.
 import AppKit
 import ServiceManagement
+import Security
 
 let bundleID = Bundle.main.bundleIdentifier ?? "eu.dgmn.jobsmenubar"
-let repoPath = Bundle.main.infoDictionary?["REPO_PATH"] as? String ?? FileManager.default.currentDirectoryPath
 let serverPort = (Bundle.main.infoDictionary?["SERVER_PORT"] as? Int) ?? 3000
 // Browser URL uses the name; the server itself still binds 127.0.0.1 only.
 let serverURL = "http://jobs.localhost:\(serverPort)/"
+// Per-user app state lives outside the repo so the installed app is self-contained.
+let dataDir = try! FileManager.default
+    .url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+    .appendingPathComponent(bundleID, isDirectory: true)
+
+let keychainItem: [String: Any] = [
+    kSecClass as String: kSecClassGenericPassword,
+    kSecAttrService as String: bundleID,
+    kSecAttrAccount as String: "OPENAI_API_KEY",
+]
+
+func readAPIKey() -> String? {
+    var query = keychainItem
+    query[kSecReturnData as String] = true
+    var out: AnyObject?
+    guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess, let data = out as? Data else { return nil }
+    return String(data: data, encoding: .utf8)
+}
+
+// Empty key deletes the item (keyless local servers like Ollama).
+// Update first: delete can fail for items created by another signature, and a failed delete must not block the write.
+func writeAPIKey(_ key: String) -> OSStatus {
+    guard !key.isEmpty else {
+        let status = SecItemDelete(keychainItem as CFDictionary)
+        return status == errSecItemNotFound ? errSecSuccess : status
+    }
+    let value = [kSecValueData as String: Data(key.utf8)] as CFDictionary
+    let status = SecItemUpdate(keychainItem as CFDictionary, value)
+    guard status == errSecItemNotFound else { return status }
+    var item = keychainItem
+    item[kSecValueData as String] = Data(key.utf8)
+    return SecItemAdd(item as CFDictionary, nil)
+}
 
 // SIGTERM (kill, logout, login-item removal): AppKit's default exit path
 // does not notify the delegate, and DispatchSource swallows the signal
@@ -23,6 +56,21 @@ if NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).coun
     exit(0)
 }
 
+// Accessory apps have no visible main menu, but Cmd+V/C/X/A still resolve through NSApp.mainMenu key equivalents.
+func installEditMenu() {
+    let editItem = NSMenuItem()
+    let edit = NSMenu(title: "Edit")
+    edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+    edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+    edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+    edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+    editItem.submenu = edit
+    let mainMenu = NSMenu()
+    mainMenu.addItem(NSMenuItem())  // first item is the application menu; keep it empty so Edit is not taken for it
+    mainMenu.addItem(editItem)
+    NSApp.mainMenu = mainMenu
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem!
     var serverProcess: Process?
@@ -34,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             try? (arg == "on" ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister())
             exit(0)
         }
+        installEditMenu()
         startServer()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
@@ -41,56 +90,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             button.toolTip = "Jobs"
         }
         let menu = buildMenu()
-        menu.delegate = self
         statusItem.menu = menu
-    }
-
-    // Refresh the checkmark each time the menu opens, since the login item can change outside the app.
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        menu.items.first { $0.title == "Start at Login" }?.state =
-            SMAppService.mainApp.status == .enabled ? .on : .off
+        // First launch: nothing configured yet, so ask once. Cancel leaves defaults; the dialog stays reachable via the menu.
+        if UserDefaults.standard.object(forKey: "baseURL") == nil && readAPIKey() == nil { showSettings() }
     }
 
     func buildMenu() -> NSMenu {
         let menu = NSMenu()
-        // Blank off-state image reserves the checkmark column, so text stays aligned when "Start at Login" is off.
-        let blankState = NSImage(size: NSSize(width: 14, height: 14))
         menu.addItem(withTitle: "Open Web UI", action: #selector(openWebUI), keyEquivalent: "")
-        let loginItem = NSMenuItem(title: "Start at Login", action: #selector(toggleStartAtLogin), keyEquivalent: "")
-        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(loginItem)
+        menu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "")
         for item in menu.items {
             item.target = self
-            item.offStateImage = blankState
         }
         return menu
     }
 
     @objc func openWebUI() {
         guard isServerUp() else {
-            let alert = NSAlert()
-            alert.messageText = "Server not running"
-            alert.informativeText = "Could not reach \(serverURL). Check ~/Library/Logs/jobs-menubar/server.log"
-            alert.runModal()
+            showError("Server not running", "Could not reach \(serverURL). Check ~/Library/Logs/jobs-menubar/server.log")
             return
         }
         NSWorkspace.shared.open(URL(string: serverURL)!)
     }
 
-    @objc func toggleStartAtLogin() {
+    @objc func showSettings() {
+        let defaults = UserDefaults.standard
+        let base = NSTextField(string: defaults.string(forKey: "baseURL") ?? "")
+        base.placeholderString = "https://api.openai.com/v1"
+        let key = NSSecureTextField(string: readAPIKey() ?? "")
+        key.placeholderString = "Empty for keyless local servers"
+        let model = NSTextField(string: defaults.string(forKey: "model") ?? "")
+        model.placeholderString = "..."
+        for field in [base, key, model] { field.widthAnchor.constraint(equalToConstant: 320).isActive = true }
+        let startAtLogin = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        startAtLogin.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        let grid = NSGridView(views: [
+            [NSTextField(labelWithString: "API base URL"), base],
+            [NSTextField(labelWithString: "API key"), key],
+            [NSTextField(labelWithString: "Default model"), model],
+            [NSTextField(labelWithString: "Start at login"), startAtLogin],
+        ])
+        grid.frame.size = grid.fittingSize
+
+        let alert = NSAlert()
+        alert.messageText = "Jobs settings"
+        alert.informativeText = "OpenAI-compatible API. The key is stored in your Keychain. Saving restarts the server."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.accessoryView = grid
+        alert.window.initialFirstResponder = base
+        NSApp.activate(ignoringOtherApps: true)  // accessory app: otherwise the dialog opens behind other windows
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let baseValue = base.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !baseValue.isEmpty, !["http", "https"].contains(URL(string: baseValue)?.scheme ?? "") {
+            showError("Invalid base URL", "Base URL must start with http:// or https://")
+            return
+        }
+        let status = writeAPIKey(key.stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard status == errSecSuccess else {
+            showError("Could not save API key", SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)")
+            return
+        }
+        defaults.set(baseValue, forKey: "baseURL")
+        defaults.set(model.stringValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "model")
+        stopServer()
+        startServer()
+        setStartAtLogin(startAtLogin.state == .on)
+    }
+
+    func showError(_ title: String, _ text: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = text
+        alert.runModal()
+    }
+
+    func setStartAtLogin(_ on: Bool) {
+        guard on != (SMAppService.mainApp.status == .enabled) else { return }
         do {
-            if SMAppService.mainApp.status == .enabled {
-                try SMAppService.mainApp.unregister()
-            } else {
-                try SMAppService.mainApp.register()
-            }
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
         } catch {
-            let alert = NSAlert()
-            alert.messageText = "Could not change login item"
-            alert.informativeText = error.localizedDescription
-            alert.runModal()
+            showError("Could not change login item", error.localizedDescription)
         }
     }
 
@@ -144,10 +227,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let process = Process()
         process.executableURL = serverURL
-        process.currentDirectoryURL = URL(fileURLWithPath: repoPath)
+        process.currentDirectoryURL = dataDir
         var env = ProcessInfo.processInfo.environment
         env["NODE_ENV"] = "production"
         env["PORT"] = String(serverPort)
+        // Assigning nil removes any inherited value, so the server falls back to its defaults.
+        let defaults = UserDefaults.standard
+        env["DB_PATH"] = dataDir.appendingPathComponent("jobs.db").path
+        env["OPENAI_BASE_URL"] = defaults.string(forKey: "baseURL").flatMap { $0.isEmpty ? nil : $0 }
+        env["OPENAI_API_KEY"] = readAPIKey()
+        env["LLM_MODEL"] = defaults.string(forKey: "model").flatMap { $0.isEmpty ? nil : $0 }
         process.environment = env
         process.standardOutput = logHandle
         process.standardError = logHandle
@@ -165,7 +254,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func stopServer() {
         serverProcess?.terminate()
+        serverProcess?.waitUntilExit()  // free the port before a restart binds it again
         serverProcess = nil
+        serverPID = -1
     }
 }
 

@@ -16,7 +16,7 @@ A personal, local-only job tracker. A Bun and Hono server stores postings in SQL
 - **Data contract**: Start in `src/schemas.ts`. It defines `JobData`, `Suitability`, `Profile` and `Job`, and server and web both import it. A new field needs a matching rule in `JOB_SYSTEM` (`src/prompts.ts`). Parsed data is stored as JSON, so no migration is needed. Check `src/schemas.test.ts`.
 - **Persistence**: Start in `src/db.ts`, which owns the single SQLite file at `DB_PATH`. Schema changes are additive `ALTER TABLE` blocks guarded by `PRAGMA table_info`, run at import. Model and reasoning-effort overrides live in `settings`; env values are the defaults.
 - **Web UI state**: Start in `src/web/App.tsx` for hash-based tabs and `src/web/useJobs.ts` for loading and 2-second polling while any job is pending or evaluating. Filter and sort state is in `src/web/filterStorage.ts`, one key per scope, validated with zod. Check `src/web/filter.test.ts`.
-- **Desktop shell**: `menubar/main.swift` starts the compiled `jobs-server` with the repo as working directory, so `.env` and `data/` resolve. `menubar/Makefile` and `install-app.sh` build and install it. The Safari extension in `safari-extension/` posts page text to `/api/jobs/content` and URLs to `/api/jobs/pdf`.
+- **Desktop shell**: `menubar/main.swift` starts the compiled `jobs-server` in `~/Library/Application Support/eu.dgmn.jobsmenubar/`, passing `DB_PATH`, `OPENAI_BASE_URL`, `OPENAI_API_KEY` (Keychain) and `LLM_MODEL` (UserDefaults) as env; the Settings… dialog edits them and restarts the server. `menubar/Makefile` and `install-app.sh` build and install it. The Safari extension in `safari-extension/` posts page text to `/api/jobs/content` and URLs to `/api/jobs/pdf`.
 
 ### Active Change Routes
 
