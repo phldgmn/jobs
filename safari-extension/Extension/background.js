@@ -26,6 +26,17 @@ async function isPdfTab(tab, url) {
   return result === "application/pdf";
 }
 
+// Ashby embeds the posting in this iframe; the surrounding page is not the job.
+async function ashbyEmbedSrc(tab) {
+  const [{ result } = {}] = await browser.scripting
+    .executeScript({
+      target: { tabId: tab.id },
+      func: () => document.getElementById("ashby_embed_iframe")?.src ?? "",
+    })
+    .catch(() => []);
+  return result ?? "";
+}
+
 async function postToServer(endpoint, path, payload) {
   let res;
   try {
@@ -43,6 +54,7 @@ async function postToServer(endpoint, path, payload) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error ?? `The server returned HTTP ${res.status}.`);
 }
+
 // Throws with a user-facing message on any failure. Returns silently on success.
 async function sendPage(tab) {
   // URL is the dedup key and the "Original" link on the server, so it must be a real web page.
@@ -69,10 +81,21 @@ async function sendPage(tab) {
     target: { tabId: tab.id, allFrames: true },
     func: capturePage,
   });
-  const frames = results
+  let frames = results
     .filter(r => r.result)
     .map(r => ({ frameId: r.frameId, ...r.result }))
     .sort((a, b) => a.frameId - b.frameId); // top frame (frameId 0) first
+
+  const embedSrc = await ashbyEmbedSrc(tab);
+  if (embedSrc) {
+    // Keep only the Ashby iframe; the host page adds navigation noise. Query and hash may differ at runtime.
+    const embed = new URL(embedSrc, url.href);
+    const embedUrl = embed.origin + embed.pathname;
+    frames = frames.filter(f => f.url.startsWith(embedUrl));
+    if (frames.length === 0) {
+      throw new Error("The Ashby job posting iframe has no readable content.");
+    }
+  }
 
   const jsonLd = frames.map(f => f.jsonLd).filter(Boolean).join("\n");
   const text = frames
