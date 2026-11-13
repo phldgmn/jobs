@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type CSSProperties } from "react";
-import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Dropdown, Form, Input, InputNumber, List, Popover, Segmented, Select, Slider, Space, Switch, Tooltip, Typography, Upload } from "antd";
+import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Dropdown, Form, Input, InputNumber, List, Segmented, Select, Slider, Space, Switch, Tooltip, Typography, Upload } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, ReloadOutlined, StopOutlined } from "@ant-design/icons";
 import { errMessage, isContentKey, req, send } from "./api";
@@ -90,25 +90,18 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
           <Space size="middle">
             {applied ? "Applied" : "Jobs"}
             {applied && (
-              <Segmented
-                value={appliedView}
-                onChange={v => setAppliedView(v as "ongoing" | "rejected")}
-                options={[
-                  { value: "ongoing", label: `Ongoing (${ongoingCount})` },
-                  { value: "rejected", label: `Rejected (${rejectedCount})` },
-                ]}
-              />
+              <Tooltip title={`${appliedAll.length} total · ${pct(ongoingCount, appliedAll.length)} ongoing · ${pct(rejectedCount, appliedAll.length)} rejected`}>
+                <Segmented
+                  value={appliedView}
+                  onChange={v => setAppliedView(v as "ongoing" | "rejected")}
+                  options={[
+                    { value: "ongoing", label: `Ongoing (${ongoingCount})` },
+                    { value: "rejected", label: `Rejected (${rejectedCount})` },
+                  ]}
+                />
+              </Tooltip>
             )}
-            {applied ? (
-              <Popover
-                trigger="hover"
-                content={`${appliedAll.length} applied in total · ${pct(ongoingCount, appliedAll.length)} open · ${pct(rejectedCount, appliedAll.length)} rejected`}
-              >
-                <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                  {visible.length} of {parsed.length} jobs
-                </Typography.Text>
-              </Popover>
-            ) : (
+            {!applied && (
               <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
                 {visible.length} of {parsed.length} jobs
               </Typography.Text>
