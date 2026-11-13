@@ -26,6 +26,7 @@ import {
   setApplied,
   setRejected,
   setAppliedNotes,
+  setPinned,
   isApplied,
 } from "./db";
 import { chatStream, currentModel, currentReasoning, ENV_MODEL, ENV_REASONING, extractJson, listModels } from "./llm";
@@ -278,6 +279,16 @@ api.post("/api/jobs/:id/rejected", async c => {
   if (!body.success) return c.json({ error: "Body must be { rejected: boolean }" }, 400);
   if (body.data.rejected && !isApplied(id)) return c.json({ error: "Only applied jobs can be rejected" }, 400);
   setRejected(id, body.data.rejected);
+  return c.json({ ok: true });
+});
+
+api.post("/api/jobs/:id/pinned", async c => {
+  const id = Number(c.req.param("id"));
+  if (!getJobRow(id)) return c.json(notFound(), 404);
+  const body = z.object({ pinned: z.boolean() }).safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "Body must be { pinned: boolean }" }, 400);
+  if (body.data.pinned && isApplied(id)) return c.json({ error: "Applied jobs cannot be pinned" }, 400);
+  setPinned(id, body.data.pinned);
   return c.json({ ok: true });
 });
 

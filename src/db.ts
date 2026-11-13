@@ -34,6 +34,8 @@ if (!cols.includes("applied_at")) db.run("ALTER TABLE jobs ADD COLUMN applied_at
 if (!cols.includes("rejected_at")) db.run("ALTER TABLE jobs ADD COLUMN rejected_at TEXT");
 // Free text kept with an application (e.g. contact, next steps); shown beside the materials.
 if (!cols.includes("applied_notes")) db.run("ALTER TABLE jobs ADD COLUMN applied_notes TEXT");
+// Set when the user pins a not-applied job; pinned jobs list first on the general list.
+if (!cols.includes("pinned_at")) db.run("ALTER TABLE jobs ADD COLUMN pinned_at TEXT");
 db.run(`CREATE TABLE IF NOT EXISTS profile(
   id INTEGER PRIMARY KEY CHECK (id = 1),
   data TEXT NOT NULL,
@@ -84,10 +86,11 @@ type JobRow = {
   applied_at: string | null;
   rejected_at: string | null;
   applied_notes: string | null;
+  pinned_at: string | null;
   created_at: string;
 };
 
-const JOB_COLS = "id, url, status, error, data, suitability, suitability_error, applied_at, rejected_at, applied_notes, created_at";
+const JOB_COLS = "id, url, status, error, data, suitability, suitability_error, applied_at, rejected_at, applied_notes, pinned_at, created_at";
 
 type MaterialRow = Material & { job_id: number };
 const MATERIAL_COLS = "id, job_id, name, mime, size, created_at";
@@ -123,6 +126,7 @@ function toJob(r: JobRow, materials: Material[]): Job {
     applied_at: r.applied_at,
     rejected_at: r.rejected_at,
     applied_notes: r.applied_notes,
+    pinned_at: r.pinned_at,
     materials,
     created_at: r.created_at,
   };
@@ -187,8 +191,16 @@ export function setSuitabilityError(id: number, msg: string) {
 // Keeps the original applied date when re-marking an already applied job.
 export function setApplied(id: number, applied: boolean) {
   db.run(
-    "UPDATE jobs SET applied_at = CASE WHEN ? THEN COALESCE(applied_at, datetime('now')) ELSE NULL END, rejected_at = CASE WHEN ? THEN rejected_at ELSE NULL END, updated_at = datetime('now') WHERE id = ?",
-    [applied ? 1 : 0, applied ? 1 : 0, id],
+    "UPDATE jobs SET applied_at = CASE WHEN ? THEN COALESCE(applied_at, datetime('now')) ELSE NULL END, rejected_at = CASE WHEN ? THEN rejected_at ELSE NULL END, pinned_at = CASE WHEN ? THEN NULL ELSE pinned_at END, updated_at = datetime('now') WHERE id = ?",
+    [applied ? 1 : 0, applied ? 1 : 0, applied ? 1 : 0, id],
+  );
+}
+
+// Pins are only for not-applied jobs: applying clears the pin (see setApplied).
+export function setPinned(id: number, pinned: boolean) {
+  db.run(
+    "UPDATE jobs SET pinned_at = CASE WHEN ? THEN COALESCE(pinned_at, datetime('now')) ELSE NULL END, updated_at = datetime('now') WHERE id = ?",
+    [pinned ? 1 : 0, id],
   );
 }
 

@@ -54,6 +54,7 @@ export type Job = {
   applied_at: string | null; // set when marked applied; null = not applied
   rejected_at: string | null; // set when an applied job is marked rejected; null = ongoing
   applied_notes: string | null; // free text saved with the application; null = none
+  pinned_at: string | null; // set when pinned; pinned not-applied jobs list first
   materials: Material[];
   created_at: string;
 };

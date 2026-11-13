@@ -35,6 +35,7 @@ const job = (id: number, d: Partial<JobData>): Job => ({
   evaluating: false,
   applied_at: null,
   rejected_at: null,
+  pinned_at: null,
   applied_notes: null,
   materials: [],
   error: null,
@@ -77,6 +78,14 @@ describe("applyFilters applied-at sorting", () => {
 
   test("applied_asc puts earliest applied first, unapplied last", () => {
     expect(order("applied_asc")).toEqual([10, 11, 12]);
+  });
+});
+
+describe("applyFilters pinning", () => {
+  test("pinned jobs come first, each group keeps the chosen sort", () => {
+    const pinned = jobs.map(j => (j.id === 3 || j.id === 1 ? { ...j, pinned_at: "2026-02-01 00:00:00" } : j));
+    const ids = applyFilters(pinned, { ...defaultFilters, sort: "deadline_asc", visibility: "all" }, TODAY).map(j => j.id);
+    expect(ids).toEqual([1, 3, 2, 4]);
   });
 });
 

@@ -1,7 +1,7 @@
-import { Fragment, useEffect, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type MouseEvent } from "react";
 import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Dropdown, Form, Input, InputNumber, List, Segmented, Select, Slider, Space, Switch, Tooltip, Typography, Upload } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, ReloadOutlined, StopOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EllipsisOutlined, PushpinFilled, PushpinOutlined, ReloadOutlined, StopOutlined } from "@ant-design/icons";
 import { errMessage, isContentKey, req, send } from "./api";
 import { applyFilters, FIT_PARTIAL, FIT_STRONG, type Filters } from "./filter";
 import { loadFilters, saveFilters } from "./filterStorage";
@@ -179,7 +179,7 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
         <Collapse
           items={visible.map(j => ({
             key: String(j.id),
-            label: <JobSummary job={j} today={today} applied={applied} />,
+            label: <JobSummary job={j} today={today} applied={applied} onChange={reload} setError={setError} />,
             children: <JobBody job={j} today={today} onChange={reload} setError={setError} />,
           }))}
         />
@@ -201,7 +201,7 @@ function FitBadge({ score }: { score: number | null }) {
   );
 }
 
-function JobSummary({ job, today, applied }: { job: Job; today: string; applied: boolean }) {
+function JobSummary({ job, today, applied, onChange, setError }: { job: Job; today: string; applied: boolean; onChange: () => void; setError: (s: string | null) => void }) {
   const d: JobData | null = job.data;
   if (!d) return null;
   const past = d.expired || (d.deadline !== null && d.deadline < today);
@@ -217,14 +217,54 @@ function JobSummary({ job, today, applied }: { job: Job; today: string; applied:
       <Tooltip title={company}>
         <Typography.Text type="secondary" style={{ ...CLIP, flex: "1 1 0" }}>{company}</Typography.Text>
       </Tooltip>
-      <div style={{ marginLeft: "auto", paddingLeft: 16, whiteSpace: "nowrap", flexShrink: 0 }}>
-        {applied && job.applied_at ? <AppliedAt at={job.applied_at} today={today} /> : <Deadline data={d} today={today} past={past} />}
+      <div style={{ position: "relative", marginLeft: "auto", paddingLeft: 16, whiteSpace: "nowrap", flexShrink: 0 }}>
+        <span className={job.pinned_at !== null ? "pin-time pinned" : "pin-time"}>
+          {applied && job.applied_at ? <AppliedAt at={job.applied_at} today={today} /> : <Deadline data={d} today={today} past={past} />}
+        </span>
+        {!applied && <PinButton job={job} onChange={onChange} setError={setError} />}
       </div>
     </div>
   );
 }
 
 const CLIP: CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+
+// Sits over the time label's right end. Hidden until the row is hovered; stays visible while pinned.
+// Opaque row-coloured centre fading to transparent at the edge; the label is masked beneath it (see .pin-time in styles.css).
+function PinButton({ job, onChange, setError }: { job: Job; onChange: () => void; setError: (s: string | null) => void }) {
+  const pinned = job.pinned_at !== null;
+  // Stops propagation so clicking the pin does not expand the row.
+  const toggle = (e: MouseEvent) => {
+    e.stopPropagation();
+    req("POST", `/api/jobs/${job.id}/pinned`, { pinned: !pinned })
+      .then(onChange)
+      .catch(err => setError(errMessage(err)));
+  };
+  return (
+    <div
+      className={pinned ? "pin-overlay pinned" : "pin-overlay"}
+      style={{
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        right: 0,
+        display: "flex",
+        alignItems: "center",
+      }}
+    >
+      <Tooltip title={pinned ? "Unpin" : "Pin to top"}>
+        <Button
+          type="text"
+          size="small"
+          aria-label={pinned ? "Unpin" : "Pin"}
+          icon={pinned ? <PushpinFilled /> : <PushpinOutlined />}
+          onClick={toggle}
+          style={{ width: 36, height: 36, background: "radial-gradient(closest-side, #fafafa calc(100% - 5px), transparent)" }}
+        />
+      </Tooltip>
+    </div>
+  );
+}
 
 // Applied time as relative date; hover shows the local absolute time. SQLite stores UTC "YYYY-MM-DD HH:MM:SS".
 function AppliedAt({ at, today }: { at: string; today: string }) {

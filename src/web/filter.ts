@@ -105,6 +105,8 @@ export function applyFilters(jobs: Job[], f: Filters, today: string): Job[] {
 
   const primary = primaryFor[f.sort];
   const comparators: Cmp[] = [
+    // Pinned jobs first; within pinned and within unpinned, the normal sort applies.
+    (a, b) => Number(a.pinned_at === null) - Number(b.pinned_at === null),
     primary.cmp,
     ...secondary.filter(s => s.family !== primary.family).map(s => s.cmp),
   ];
