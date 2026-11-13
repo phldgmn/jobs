@@ -90,7 +90,15 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
           <Space size="middle">
             {applied ? "Applied" : "Jobs"}
             {applied && (
-              <Tooltip title={`${appliedAll.length} total · ${pct(ongoingCount, appliedAll.length)} ongoing · ${pct(rejectedCount, appliedAll.length)} rejected`}>
+              <Tooltip
+                title={
+                  <>
+                    <div>{appliedAll.length} total</div>
+                    <div>{pct(ongoingCount, appliedAll.length)} ongoing</div>
+                    <div>{pct(rejectedCount, appliedAll.length)} rejected</div>
+                  </>
+                }
+              >
                 <Segmented
                   value={appliedView}
                   onChange={v => setAppliedView(v as "ongoing" | "rejected")}
