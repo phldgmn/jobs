@@ -179,6 +179,7 @@ export function JobsPage({ applied = false }: { applied?: boolean }) {
         <Collapse
           items={visible.map(j => ({
             key: String(j.id),
+            className: j.pinned_at !== null ? "pinned-row" : undefined,
             label: <JobSummary job={j} today={today} applied={applied} onChange={reload} setError={setError} />,
             children: <JobBody job={j} today={today} onChange={reload} setError={setError} />,
           }))}
@@ -230,8 +231,11 @@ function JobSummary({ job, today, applied, onChange, setError }: { job: Job; tod
 
 const CLIP: CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 
-// Sits over the time label's right end. Hidden until the row is hovered; stays visible while pinned.
+// Sits over the time label's right end. Shown only while the row is hovered, pinned or not.
 // Opaque row-coloured centre fading to transparent at the edge; the label is masked beneath it (see .pin-time in styles.css).
+// Shades match the row header: #fafafa unpinned, #f0f5ff pinned (see .pinned-row in styles.css).
+const ROW_PIN_BG = "#fafafa";
+const PINNED_PIN_BG = "#f0f5ff";
 function PinButton({ job, onChange, setError }: { job: Job; onChange: () => void; setError: (s: string | null) => void }) {
   const pinned = job.pinned_at !== null;
   // Stops propagation so clicking the pin does not expand the row.
@@ -260,7 +264,7 @@ function PinButton({ job, onChange, setError }: { job: Job; onChange: () => void
           aria-label={pinned ? "Unpin" : "Pin"}
           icon={pinned ? <PushpinFilled /> : <PushpinOutlined />}
           onClick={toggle}
-          style={{ width: 36, height: 36, background: "radial-gradient(closest-side, #fafafa calc(100% - 5px), transparent)" }}
+          style={{ width: 36, height: 36, background: `radial-gradient(closest-side, ${pinned ? PINNED_PIN_BG : ROW_PIN_BG} calc(100% - 5px), transparent)` }}
         />
       </Tooltip>
     </div>

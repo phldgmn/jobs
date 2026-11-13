@@ -15,19 +15,23 @@ body {
   height: 100%;
 }
 
-/* Pin is invisible until the row is hovered, but a pinned job always shows its pin. */
-.pin-overlay:not(.pinned) {
+/* Pin is invisible until the row is hovered; a pinned row keeps its tint instead of a permanent pin. */
+.pin-overlay {
   opacity: 0;
 }
 .ant-collapse-item:hover .pin-overlay {
   opacity: 1;
 }
 
+/* Pinned rows get their own header shade; the pin button uses a matching shade so it stays on the row. */
+.pinned-row > .ant-collapse-header {
+  background: #f0f5ff;
+}
+
 /* While the pin shows, the label's right end fades out beneath it so the pin stands clear of text. */
 .pin-time {
   display: inline-block;
 }
-.ant-collapse-item:hover .pin-time,
-.pin-time.pinned {
+.ant-collapse-item:hover .pin-time {
   mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent 100%);
 }
