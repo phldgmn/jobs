@@ -206,6 +206,7 @@ function JobSummary({ job, today, applied, onChange, setError }: { job: Job; tod
   if (!d) return null;
   const past = d.expired || (d.deadline !== null && d.deadline < today);
   const company = [d.company, d.location].filter(Boolean).join(", ") || "—";
+  const pinClass = job.pinned_at !== null ? "pin-time pinned" : "pin-time";
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
@@ -218,7 +219,7 @@ function JobSummary({ job, today, applied, onChange, setError }: { job: Job; tod
         <Typography.Text type="secondary" style={{ ...CLIP, flex: "1 1 0" }}>{company}</Typography.Text>
       </Tooltip>
       <div style={{ position: "relative", marginLeft: "auto", paddingLeft: 16, whiteSpace: "nowrap", flexShrink: 0 }}>
-        <span className={job.pinned_at !== null ? "pin-time pinned" : "pin-time"}>
+        <span className={applied ? undefined : pinClass}>
           {applied && job.applied_at ? <AppliedAt at={job.applied_at} today={today} /> : <Deadline data={d} today={today} past={past} />}
         </span>
         {!applied && <PinButton job={job} onChange={onChange} setError={setError} />}
@@ -486,6 +487,7 @@ function JobBody({
     });
 
   const past = d.expired || (d.deadline !== null && d.deadline < today);
+  const pinClass = job.pinned_at !== null ? "pin-time pinned" : "pin-time";
   const remoteLabel = remoteOptions.find(o => o.value === d.remote)?.label ?? d.remote;
   const language = d.translated ? `${d.language} (translated)` : d.language;
   const editRemoteOptions = remoteOptions.filter(o => o.value !== "any");
